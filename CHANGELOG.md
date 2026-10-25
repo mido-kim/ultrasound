@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-10-25
+
+- **미팅 자료**: a meeting slides archive (home card and page). Each meeting has
+  a link to the original Google Slides and the PPTX to download, under its
+  original file name. First entry: 2026-09-11 진행 사항.
+- The home screen shows the 진행 사항 overview slide at the top.
+- Slide decks download straight from the server; the offline cache skips them.
+
 ## 0.3.0 — 2026-10-25
 
 - 어레이 제작 → **설계 파일**: array versions 1, 2-1, 2-2 and 2-3 with

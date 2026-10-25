@@ -8,6 +8,7 @@ import { firebaseConfig } from './config.js';
 import { ARRAY_DESIGNS } from './designs.js';
 import { GUIDE_HTML } from './guide.js';
 import { describeSpec, judge } from './judge.js';
+import { HOME_FIGURE, MEETINGS } from './meetings.js';
 import {
   PROTO_KINDS, deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolOf, protocolPut,
   removeStep, runProgress, runSteps, stepCount, stepHasResults,
@@ -125,10 +126,11 @@ function toast(text) {
 
 // '#/' home · '#/boards' · '#/b/<id>[/<stage n>]' one board · '#/guide' ·
 // '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/p/array/designs' design files ·
-// '#/r/<id>' one run · '#/settings'
+// '#/r/<id>' one run · '#/meetings' meeting slides · '#/settings'
 function route() {
   const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (a === 'boards') return { view: 'boards' };
+  if (a === 'meetings') return { view: 'meetings' };
   if (a === 'b' && b) return { view: 'board', targetId: decodeURIComponent(b), stage: c !== undefined ? Number(c) : null };
   if (a === 'guide') return { view: 'guide' };
   if (a === 'p' && b === 'array' && c === 'designs') return { view: 'designs', kind: b };
@@ -170,7 +172,7 @@ function render(newPage = false) {
   const r = route();
   const pages = {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
-    edit: () => editPage(r.kind), run: () => runPage(r), settings: settingsPage, home: homePage,
+    edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, settings: settingsPage, home: homePage,
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
   if (newPage) {
@@ -250,10 +252,21 @@ function homePage() {
     <p class="muted small">${esc(blurb)}</p>
     ${status}
   </a>`;
-  return `<div class="hub">
+  const fig = HOME_FIGURE ? `
+  <figure class="home-fig">
+    <a href="${esc(HOME_FIGURE.src)}" target="_blank" rel="noopener"><img src="${esc(HOME_FIGURE.src)}" alt="${esc(HOME_FIGURE.caption)}" decoding="async"></a>
+    <figcaption><a href="#/meetings">${esc(HOME_FIGURE.caption)} →</a></figcaption>
+  </figure>` : '';
+  return `${fig}<div class="hub">
     ${card('#/boards', '회로 보드 검증', '메인 · HV 보드를 단계별로 확인', boardsSummary())}
     ${Object.entries(PROTO_KINDS).map(([k, K]) => card(`#/p/${k}`, K.name, K.blurb, protoSummary(k))).join('')}
+    ${card('#/meetings', '미팅 자료', '미팅 슬라이드 모음', meetingsSummary())}
   </div>`;
+}
+
+function meetingsSummary() {
+  if (!MEETINGS.length) return '<p class="hub-status">아직 없음</p>';
+  return `<ul class="hub-list">${MEETINGS.slice(0, 4).map((m) => `<li><b>${esc(m.date)}</b><span>${esc(m.title)}</span></li>`).join('')}${more(MEETINGS.length)}</ul>`;
 }
 
 const more = (n) => (n > 4 ? `<li class="muted">외 ${n - 4}개</li>` : '');
@@ -570,6 +583,28 @@ function designsPage() {
   </div>
   <nav class="guide-nav">${ARRAY_DESIGNS.map((d) => `<a href="#/p/array/designs" data-scroll="design-${esc(d.id)}">${esc(d.title)}</a>`).join('')}</nav>
   ${versions}`;
+}
+
+// ---------------------------------------------------------------- meeting slides
+
+function meetingsPage() {
+  const items = MEETINGS.map((m) => `
+  <section class="panel meeting" id="meeting-${esc(m.id)}">
+    <div class="row"><h2>${esc(m.title)}</h2><span class="chip">${esc(m.date)}</span></div>
+    ${m.sub ? `<p class="muted small">${esc(m.sub)}</p>` : ''}
+    ${m.thumb ? `<a class="meeting-thumb" href="${esc(m.thumb)}" target="_blank" rel="noopener"><img src="${esc(m.thumb)}" alt="${esc(`${m.date} ${m.title}`)}" loading="lazy" decoding="async"></a>` : ''}
+    <div class="row">
+      ${m.google ? `<a class="btn primary" href="${esc(m.google)}" target="_blank" rel="noopener">Google Slides에서 열기</a>` : ''}
+      ${m.pptx ? `<a class="btn" href="${esc(m.pptx.href)}" download="${esc(m.pptx.name)}">PPTX 받기 · ${fileSize(m.pptx.size)}</a>` : ''}
+    </div>
+  </section>`).join('');
+  return `
+  <div class="page-head">
+    ${back('#/', '홈')}
+    <h1>미팅 자료</h1>
+    <p class="lede">미팅마다 원본 Google Slides와 PPTX 파일이에요.</p>
+  </div>
+  ${items || '<div class="empty"><h2>아직 미팅 자료가 없어요</h2></div>'}`;
 }
 
 // ---------------------------------------------------------------- step editor

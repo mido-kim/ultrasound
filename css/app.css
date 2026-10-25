@@ -233,6 +233,14 @@ a.card:hover { border-color: var(--accent); }
 .seg button[aria-pressed="true"][data-s="skip"] { background: var(--muted); color: var(--surface); }
 .note-in, .small-in { font-size: 13px !important; padding: 6px 8px !important; }
 
+/* ---------------------------------------------------------------- home picture, meeting slides */
+.home-fig { margin: 0; display: grid; gap: 6px; max-width: 760px; }
+/* slides have a white page, so they sit on white in both themes */
+.home-fig img, .meeting-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.home-fig figcaption { font-size: 13px; }
+.home-fig figcaption a { text-decoration: none; }
+.meeting-thumb { display: block; max-width: 520px; }
+
 /* ---------------------------------------------------------------- array design files */
 .design ul.small { color: var(--muted); }
 .figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 12px; }

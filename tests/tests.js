@@ -1,5 +1,6 @@
 import { backupFile, csvFor, parseBackup } from '../js/backup.js';
 import { ARRAY_DESIGNS } from '../js/designs.js';
+import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
 import {
   deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolPut, removeStep, runProgress, runSteps, stepCount,
@@ -263,6 +264,25 @@ test('backup round trip, and a 0.1 backup without runs still loads', () => {
     }
   }
   results.push([!bad.length, 'design files: all listed pictures and files exist', bad.join('\n      ')]);
+}
+
+// ---- meeting slides and the home picture: files exist, the pptx at its size, links are https
+{
+  const bad = [];
+  const head = (u) => fetch(`../${u}`, { method: 'HEAD', cache: 'no-store' });
+  for (const m of MEETINGS) {
+    if (m.thumb && !(await head(m.thumb)).ok) bad.push(m.thumb);
+    if (m.pptx) {
+      const r = await head(m.pptx.href);
+      const len = Number(r.headers.get('content-length'));
+      if (!r.ok) bad.push(`${m.pptx.href}: ${r.status}`);
+      else if (len && len !== m.pptx.size) bad.push(`${m.pptx.href}: ${len} bytes, listed ${m.pptx.size}`);
+    }
+    if (m.google && !m.google.startsWith('https://docs.google.com/')) bad.push(`${m.id}: odd Slides link`);
+  }
+  if (HOME_FIGURE && !(await head(HOME_FIGURE.src)).ok) bad.push(HOME_FIGURE.src);
+  if (HOME_FIGURE && !MEETINGS.some((m) => m.id === HOME_FIGURE.meeting)) bad.push('home picture points at no meeting');
+  results.push([!bad.length, 'meeting slides: files exist, sizes and links look right', bad.join('\n      ')]);
 }
 
 // ---- report

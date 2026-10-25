@@ -4,7 +4,7 @@
 // version in the URL and are served from the saved copy. Google Fonts are
 // saved the first time they load, so the fonts also work offline.
 
-const CACHE = 'usbringup-v3';
+const CACHE = 'usbringup-v4';
 const SHELL = [
   './',
   'index.html',
@@ -17,6 +17,7 @@ const SHELL = [
   'js/guide.js',
   'js/judge.js',
   'js/main.js',
+  'js/meetings.js',
   'js/protocols.js',
   'js/records.js',
   'js/settings.js',
@@ -51,6 +52,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // Slide decks are large: the browser downloads them directly, they aren't kept offline.
+  if (url.origin === location.origin && /\.pptx$/i.test(url.pathname)) return;
   if (url.origin === location.origin) e.respondWith(networkFirst(req));
   else if (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/')) e.respondWith(cacheFirst(req));
   else if (FONT_HOSTS.includes(url.hostname)) e.respondWith(cacheFirst(req));

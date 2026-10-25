@@ -1,2 +1,3 @@
 # Design files are copies of the originals: keep their bytes exactly (no line-ending changes)
 designs/** -text
+meetings/** -text

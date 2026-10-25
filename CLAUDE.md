@@ -51,6 +51,11 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   with exact byte sizes; the tests check every listed file exists at that size.
   Preview SVGs are rendered from the Gerbers with gerbonara (flex colours);
   the repo is public, so everything here is downloadable by anyone.
+- `js/meetings.js` + `meetings/<date>/`: the 미팅 자료 page (`#/meetings`)
+  and `HOME_FIGURE`, the picture at the top of the home screen. Copies again;
+  the originals are in `../meeting slides/`. Store a pptx under an ASCII name
+  and give its original name in `pptx.name` (used for `download=`). `sw.js`
+  lets .pptx requests go straight to the network (too big to keep offline).
 - `js/guide.js`: board reference HTML (maps, tables, power order, symptoms,
   open questions), shortened from `../us_control_v5.4_pcb_bringup_guide.html`.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from
