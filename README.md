@@ -16,8 +16,10 @@
 - **어레이 제작**, **팬텀 제작.** 프로토콜 단계는 앱에서 직접 적어요 (단계 편집). 배치 (B1, B2…)나 팬텀 (P1, P2…)을 만들 때마다 그 단계로 체크리스트가 생겨요.
   - 단계마다 완료 · 문제 · 건너뜀, 값 (켜 둔 단계만), 메모를 남겨요.
   - 단계를 고치면 모든 배치에 바로 보여요. 기록이 있는 단계를 지우면 그 배치에는 "프로토콜에서 뺀 단계"로 남아요.
-- **어레이 설계** (어레이 제작 → 설계 파일). 버전 1 · 2-1 · 2-2 · 2-3의 미리보기 그림과 원본 파일 (JLC Gerber, KiCad, AutoCAD · DXF). 파일은 `designs/array/`에 있는 복사본이에요. 사이트가 열려 있으면 주소를 아는 누구나 받을 수 있어요 (저장소가 비공개여도 마찬가지).
-- **미팅 자료.** 미팅마다 원본 Google Slides 링크와 PPTX 파일. 홈 화면 맨 위에는 진행 사항 그림. 파일은 `meetings/`에 있는 복사본이에요.
+- **파일은 Google Drive에, 앱은 지도.** 큰 파일 (슬라이드, zip, KiCad, 데이터)은 Drive에 두고, 앱에는 설명, 링크, 미리보기 그림만 둬요.
+- **어레이 설계** (어레이 제작 → 설계 파일), **미팅 자료**: 앱에서 추가 · 편집. 항목마다 Drive 폴더 링크, 다른 링크 (Google Slides, Notion …), 폴더 안 파일 목록, 미리보기 그림 (5 MB까지, Firebase에 저장). 로그인한 두 계정만 볼 수 있어요.
+- **자료 지도.** 자료가 어디에 있는지: Drive, Notion, PC 폴더, GitHub, Firebase. 주소는 누르면 열리고 PC 경로는 복사돼요.
+- 홈 화면 맨 위 그림은 아무 미리보기 그림에서 "홈에 표시"로 골라요.
 - **설정.** 이름, 테마, 계정 · UID, 결과표 CSV, JSON 백업 · 복원.
 
 보드 검증 절차의 출처는 `../us_control_v5.4_pcb_bringup_guide.html`. 절차를 바꾸면 `js/steps.js`와 `js/guide.js`를 고쳐요.
@@ -62,8 +64,10 @@ http://localhost:5174 를 열어요. "로그인 없이 이 기기에서만 쓰�
 | `js/protocols.js` | 어레이 · 팬텀 프로토콜과 배치 |
 | `js/backup.js` | 결과표 CSV, JSON 백업 |
 | `js/guide.js` | 보드 지도와 표 |
-| `js/designs.js`, `designs/array/` | 어레이 설계 버전 목록, 미리보기 그림과 파일 |
-| `js/meetings.js`, `meetings/` | 미팅 자료 목록과 홈 화면 그림 |
+| `js/files.js` | 미리보기 그림을 Firestore에 조각으로 저장하는 규칙 |
+| `js/places.js` | 자료 지도의 묶음과 기본 목록 |
+| `js/legacy-import.js`, `js/designs.js`, `js/meetings.js`, `designs/`, `meetings/` | 예전에 사이트에 있던 자료 (한 번 옮기고 나면 지워요) |
+| `js/dev-store.js` | 개발용: `http://localhost:5174/?dev`로 Firebase 없이 화면 시험 |
 | `js/store.js`, `js/cloud.js` | 이 기기 저장 / Firebase 공유 저장 (같은 인터페이스) |
 | `js/config.js` | Firebase 프로젝트 (`ultrasound-ebd93`) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | 오프라인과 설치 |

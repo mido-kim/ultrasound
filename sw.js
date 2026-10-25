@@ -4,7 +4,7 @@
 // version in the URL and are served from the saved copy. Google Fonts are
 // saved the first time they load, so the fonts also work offline.
 
-const CACHE = 'usbringup-v4';
+const CACHE = 'usbringup-v5';
 const SHELL = [
   './',
   'index.html',
@@ -14,10 +14,13 @@ const SHELL = [
   'js/cloud.js',
   'js/config.js',
   'js/designs.js',
+  'js/files.js',
   'js/guide.js',
   'js/judge.js',
+  'js/legacy-import.js',
   'js/main.js',
   'js/meetings.js',
+  'js/places.js',
   'js/protocols.js',
   'js/records.js',
   'js/settings.js',

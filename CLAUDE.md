@@ -44,18 +44,23 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   into `drafts` and is saved after `SAVE_MS` or on blur. The step editor works
   on a copy (`protoEdit`) saved as it changes. `boot()` is called at the end
   of the file so every const exists before the first render.
-- `js/designs.js` + `designs/array/<version>/`: the 어레이 설계 page (route
-  `#/p/array/designs`). Files there are **copies**; the originals stay in the
-  project folder (`../US_array_v1.zip`, `../array_v1*`, `../array_v2_fpc/`).
-  New version: copy its files and previews in, add an entry (newest first)
-  with exact byte sizes; the tests check every listed file exists at that size.
-  Preview SVGs are rendered from the Gerbers with gerbonara (flex colours);
-  the repo is public, so everything here is downloadable by anyone.
-- `js/meetings.js` + `meetings/<date>/`: the 미팅 자료 page (`#/meetings`)
-  and `HOME_FIGURE`, the picture at the top of the home screen. Copies again;
-  the originals are in `../meeting slides/`. Store a pptx under an ASCII name
-  and give its original name in `pptx.name` (used for `download=`). `sw.js`
-  lets .pptx requests go straight to the network (too big to keep offline).
+- **Files policy (user's decision, no paid services):** big files live in the
+  user's institutional **Google Drive**; the app is the map. Meetings
+  (`meetings`), design versions (`designs`) and 자료 지도 (`places`) are
+  Firestore records with text, a `drive` folder link, `links` [{label, url}],
+  `contents` ("name — note" lines of what is in the Drive folder) and `images`
+  [{file, caption}]. Only preview pictures (≤ `MAX_PICTURE`, 5 MB) are stored,
+  in Firestore, cut into chunks (`js/files.js`; `uploadFile` / `readFile` /
+  `deleteFile` in `cloud.js`). `config/home` picks the home-screen picture.
+  Free-plan Firestore holds 1 GiB in all, so never store decks or data there.
+- `js/places.js`: 자료 지도 groups and the starting list ("기본 목록 넣기").
+- `js/legacy-import.js` + `js/designs.js` + `js/meetings.js` + `designs/` +
+  `meetings/`: what the site used to serve, moved once into records from
+  설정 → 자료 옮기기. Delete all of them (and their tests and `sw.js` entries)
+  once the user confirms the move. `../drive_upload/` holds the same files as
+  a folder tree for the user to drag into Drive.
+- `js/dev-store.js`: in-memory store with files; `http://localhost:5174/?dev`
+  tries every file screen without Firebase. Use it to test file features.
 - `js/guide.js`: board reference HTML (maps, tables, power order, symptoms,
   open questions), shortened from `../us_control_v5.4_pcb_bringup_guide.html`.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from

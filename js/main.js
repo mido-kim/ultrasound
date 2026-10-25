@@ -5,10 +5,10 @@
 
 import { backupFile, csvFor, parseBackup } from './backup.js';
 import { firebaseConfig } from './config.js';
-import { ARRAY_DESIGNS } from './designs.js';
+import { MAX_PICTURE, baseName, fileSize, isPicture } from './files.js';
 import { GUIDE_HTML } from './guide.js';
 import { describeSpec, judge } from './judge.js';
-import { HOME_FIGURE, MEETINGS } from './meetings.js';
+import { pending as legacyPending, runImport } from './legacy-import.js';
 import {
   PROTO_KINDS, deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolOf, protocolPut,
   removeStep, runProgress, runSteps, stepCount, stepHasResults,
@@ -16,10 +16,11 @@ import {
 import {
   boardProgress, deleteBoardOps, earlierUnfinished, newBoard, nextBoardName, over50, resultOf, resultOps, stageProgress,
 } from './records.js';
+import { PLACE_GROUPS, SEED_PLACES } from './places.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { KINDS, stagesFor, stepById } from './steps.js';
 import { COLLS, localStore, readLocalData } from './store.js';
-import { $, esc, readJSON, saveFile, when, writeJSON } from './util.js';
+import { $, esc, readJSON, saveFile, uid, when, writeJSON } from './util.js';
 import { VERSION } from './version.js';
 
 const app = $('#app');
@@ -49,6 +50,10 @@ async function boot() {
   addEventListener('offline', () => store && render());
   document.addEventListener('visibilitychange', () => document.hidden && store && flushAll());
   wireEvents();
+  if (location.hostname === 'localhost' && new URLSearchParams(location.search).has('dev')) {
+    const { devStore } = await import('./dev-store.js');
+    return start(devStore());
+  }
   if (!firebaseConfig || settings.mode === 'local') return start(localStore());
   showMessage('불러오는 중…');
   try {
@@ -126,11 +131,12 @@ function toast(text) {
 
 // '#/' home · '#/boards' · '#/b/<id>[/<stage n>]' one board · '#/guide' ·
 // '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/p/array/designs' design files ·
-// '#/r/<id>' one run · '#/meetings' meeting slides · '#/settings'
+// '#/r/<id>' one run · '#/meetings' meeting slides · '#/places' 자료 지도 · '#/settings'
 function route() {
   const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (a === 'boards') return { view: 'boards' };
   if (a === 'meetings') return { view: 'meetings' };
+  if (a === 'places') return { view: 'places' };
   if (a === 'b' && b) return { view: 'board', targetId: decodeURIComponent(b), stage: c !== undefined ? Number(c) : null };
   if (a === 'guide') return { view: 'guide' };
   if (a === 'p' && b === 'array' && c === 'designs') return { view: 'designs', kind: b };
@@ -172,9 +178,10 @@ function render(newPage = false) {
   const r = route();
   const pages = {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
-    edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, settings: settingsPage, home: homePage,
+    edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, places: placesPage, settings: settingsPage, home: homePage,
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
+  hydrateFiles();
   if (newPage) {
     scrollTo(0, 0);
     return;
@@ -252,21 +259,32 @@ function homePage() {
     <p class="muted small">${esc(blurb)}</p>
     ${status}
   </a>`;
-  const fig = HOME_FIGURE ? `
+  const home = store.kind === 'cloud' ? state.config.get('home') : null;
+  const fig = home?.image && state.files.has(home.image) ? `
   <figure class="home-fig">
-    <a href="${esc(HOME_FIGURE.src)}" target="_blank" rel="noopener"><img src="${esc(HOME_FIGURE.src)}" alt="${esc(HOME_FIGURE.caption)}" decoding="async"></a>
-    <figcaption><a href="#/meetings">${esc(HOME_FIGURE.caption)} →</a></figcaption>
+    ${picture(home.image, home.caption)}
+    <figcaption><a href="${esc(home.link || '#/meetings')}">${esc(home.caption)} →</a></figcaption>
   </figure>` : '';
   return `${fig}<div class="hub">
     ${card('#/boards', '회로 보드 검증', '메인 · HV 보드를 단계별로 확인', boardsSummary())}
     ${Object.entries(PROTO_KINDS).map(([k, K]) => card(`#/p/${k}`, K.name, K.blurb, protoSummary(k))).join('')}
     ${card('#/meetings', '미팅 자료', '미팅 슬라이드 모음', meetingsSummary())}
+    ${card('#/places', '자료 지도', '자료가 어디에 있는지', placesSummary())}
   </div>`;
 }
 
 function meetingsSummary() {
-  if (!MEETINGS.length) return '<p class="hub-status">아직 없음</p>';
-  return `<ul class="hub-list">${MEETINGS.slice(0, 4).map((m) => `<li><b>${esc(m.date)}</b><span>${esc(m.title)}</span></li>`).join('')}${more(MEETINGS.length)}</ul>`;
+  if (store.kind !== 'cloud') return '<p class="hub-status">로그인하면 보여요</p>';
+  const list = sortedMeetings();
+  if (!list.length) return '<p class="hub-status">아직 없음</p>';
+  return `<ul class="hub-list">${list.slice(0, 4).map((m) => `<li><b>${esc(m.date)}</b><span>${esc(m.title)}</span></li>`).join('')}${more(list.length)}</ul>`;
+}
+
+function placesSummary() {
+  const n = state.places.size;
+  if (!n) return '<p class="hub-status">아직 비어 있어요</p>';
+  const groups = [...new Set(sortedPlaces().map((p) => p.group || '기타'))];
+  return `<p class="hub-status">${n}곳 · ${esc(groups.join(', '))}</p>`;
 }
 
 const more = (n) => (n > 4 ? `<li class="muted">외 ${n - 4}개</li>` : '');
@@ -556,55 +574,196 @@ function runPage(r) {
   ${body}`;
 }
 
-// ---------------------------------------------------------------- array design files
+// ---------------------------------------------------------------- preview pictures (Firestore)
 
-const fileSize = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
+const fileUrls = new Map(); // file id → object URL of a picture already loaded
+const fileLoads = new Map(); // file id → its loading promise
+const loadQueue = [];
+let loadsRunning = 0;
+
+function pictureUrl(id) {
+  if (fileUrls.has(id)) return Promise.resolve(fileUrls.get(id));
+  if (!fileLoads.has(id)) {
+    fileLoads.set(id, new Promise((resolve, reject) => {
+      loadQueue.push(() => store.readFile(id).then((blob) => {
+        const url = URL.createObjectURL(blob);
+        fileUrls.set(id, url);
+        resolve(url);
+      }, (err) => {
+        fileLoads.delete(id);
+        reject(err);
+      }));
+      pumpLoads();
+    }));
+  }
+  return fileLoads.get(id);
+}
+
+function pumpLoads() {
+  while (loadsRunning < 3 && loadQueue.length) {
+    loadsRunning++;
+    loadQueue.shift()().finally(() => {
+      loadsRunning--;
+      pumpLoads();
+    });
+  }
+}
+
+// A picture from Firestore: filled in after render from the cache or once loaded.
+function picture(file, alt) {
+  const url = fileUrls.get(file);
+  return `<a class="fig-link" data-src-file="${esc(file)}" target="_blank" rel="noopener"${url ? ` href="${url}"` : ''}>`
+    + `<img data-src-file="${esc(file)}"${url ? ` src="${url}"` : ''} alt="${esc(alt)}" decoding="async"></a>`;
+}
+
+function hydrateFiles() {
+  if (store.kind !== 'cloud') return;
+  for (const el of app.querySelectorAll('[data-src-file]')) {
+    const id = el.dataset.srcFile;
+    const set = (url) => (el.tagName === 'IMG' ? el.setAttribute('src', url) : el.setAttribute('href', url));
+    if (fileUrls.has(id)) set(fileUrls.get(id));
+    else pictureUrl(id).then(set, () => el.classList.add('missing'));
+  }
+}
+
+function forgetFiles(ids) {
+  for (const id of ids) {
+    store.deleteFile(id).catch((err) => console.error(err));
+    if (fileUrls.has(id)) URL.revokeObjectURL(fileUrls.get(id));
+    fileUrls.delete(id);
+    fileLoads.delete(id);
+  }
+  const home = state.config.get('home');
+  if (home && ids.includes(home.image)) commit([{ op: 'remove', coll: 'config', id: 'home' }]);
+}
+
+const pictureIdsOf = (item) => (item.images || []).map((x) => x.file);
+const safeLink = (u) => (/^https:\/\//.test(u || '') ? u : '');
+const contentLines = (item) => String(item.contents || '').split('\n').map((x) => x.trim()).filter(Boolean);
+
+// What a meeting or a design version holds: pictures, the Drive folder and
+// other links, and the list of files in that folder.
+function itemBody(item, coll) {
+  const home = state.config.get('home');
+  const pics = (item.images || []).map((im) => `
+    <figure>
+      ${picture(im.file, im.caption || item.title)}
+      <figcaption><span>${esc(im.caption || '')}</span>${home?.image === im.file
+    ? '<span class="chip ok">홈 화면 그림</span>'
+    : `<button type="button" class="link" data-act="set-home" data-file="${esc(im.file)}" data-coll="${coll}" data-id="${esc(item.id)}">홈에 표시</button>`}</figcaption>
+    </figure>`).join('');
+  const links = [
+    safeLink(item.drive) && { url: item.drive, label: 'Drive 폴더' },
+    ...(item.links || []).filter((l) => safeLink(l.url)),
+  ].filter(Boolean);
+  const lines = contentLines(item);
+  const contents = lines.map((l) => {
+    const [name, ...rest] = l.split(' — ');
+    return `<li><span class="mono">${esc(name)}</span>${rest.length ? `<span class="muted">${esc(rest.join(' — '))}</span>` : ''}</li>`;
+  }).join('');
+  return `
+    ${pics ? `<div class="figs">${pics}</div>` : ''}
+    ${links.length ? `<div class="row">${links.map((l, i) => `<a class="btn${i === 0 ? ' primary' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label || '링크')}</a>`).join('')}</div>` : ''}
+    ${lines.length && !safeLink(item.drive) ? '<p class="small warn-t">Drive 폴더 링크가 아직 없어요 · 편집에서 붙여 주세요</p>' : ''}
+    ${contents ? `<details class="contents"><summary>Drive 폴더 안 파일 ${lines.length}개</summary><ul class="files">${contents}</ul></details>` : ''}`;
+}
+
+function needsLogin(what) {
+  return `<div class="empty"><h2>로그인하면 보여요</h2><p>${what} Firebase에 있어서, 이 기기에만 쓰는 모드에서는 안 보여요.</p>
+    ${firebaseConfig ? '<button type="button" data-act="use-cloud">로그인해서 같이 쓰기</button>' : ''}</div>`;
+}
+
+function legacyHint() {
+  const p = legacyPending(state);
+  if (!p.designs.length && !p.meetings.length) return '';
+  return '<div class="banner info"><b>사이트에 있던 자료가 아직 안 옮겨졌어요</b><p><a href="#/settings">설정 → 자료 옮기기</a>에서 한 번 옮겨 주세요.</p></div>';
+}
+
+const sortedMeetings = () => [...state.meetings.values()]
+  .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+const sortedDesigns = () => [...state.designs.values()]
+  .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.title || '').localeCompare(a.title || '', 'ko', { numeric: true }));
+
+// ---------------------------------------------------------------- array design versions
 
 function designsPage() {
-  const versions = ARRAY_DESIGNS.map((d) => `
-  <section class="panel design" id="design-${esc(d.id)}">
-    <div class="row"><h2>${esc(d.title)}</h2><span class="chip">${esc(d.date)}</span></div>
-    <ul class="small">${d.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
-    <div class="figs">${d.images.map((i) => `
-      <figure>
-        <a href="${esc(i.src)}" target="_blank" rel="noopener"><img src="${esc(i.src)}" alt="${esc(`${d.title} ${i.caption}`)}" loading="lazy" decoding="async"></a>
-        <figcaption>${esc(i.caption)}</figcaption>
-      </figure>`).join('')}
-    </div>
-    <ul class="files">${d.files.map((f) => `
-      <li><a href="${esc(f.href)}" download>${esc(f.href.split('/').pop())}</a><span class="muted">${esc(f.label)} · ${fileSize(f.size)}</span></li>`).join('')}
-    </ul>
-  </section>`).join('');
-  return `
-  <div class="page-head">
+  const cloudOn = store.kind === 'cloud';
+  const head = `<div class="page-head">
     ${back('#/p/array', PROTO_KINDS.array.name)}
-    <h1>어레이 설계</h1>
-    <p class="lede">버전별 미리보기와 원본 파일이에요. 그림을 누르면 크게 열려요.</p>
-  </div>
-  <nav class="guide-nav">${ARRAY_DESIGNS.map((d) => `<a href="#/p/array/designs" data-scroll="design-${esc(d.id)}">${esc(d.title)}</a>`).join('')}</nav>
-  ${versions}`;
+    <div class="row"><h1>어레이 설계</h1><span class="spacer"></span>${cloudOn ? '<button type="button" class="primary" data-act="add-design">+ 버전 추가</button>' : ''}</div>
+    <p class="lede">버전마다 미리보기 그림과 Drive 폴더. 파일은 Drive에 있어요.</p>
+  </div>`;
+  if (!cloudOn) return head + needsLogin('설계 버전은');
+  const list = sortedDesigns();
+  const versions = list.map((d) => `
+  <section class="panel design" id="design-${esc(d.id)}">
+    <div class="row"><h2>${esc(d.title)}</h2>${d.date ? `<span class="chip">${esc(d.date)}</span>` : ''}<span class="spacer"></span><button type="button" data-act="edit-design" data-id="${esc(d.id)}">편집</button></div>
+    ${(d.points || []).length ? `<ul class="small">${d.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+    ${itemBody(d, 'designs')}
+  </section>`).join('');
+  const nav = list.length > 1 ? `<nav class="guide-nav">${list.map((d) => `<a href="#/p/array/designs" data-scroll="design-${esc(d.id)}">${esc(d.title)}</a>`).join('')}</nav>` : '';
+  return `${head}${legacyHint()}${nav}${versions || '<div class="empty"><h2>아직 설계 버전이 없어요</h2><p>+ 버전 추가로 그림과 Drive 링크를 넣어요.</p></div>'}`;
 }
 
 // ---------------------------------------------------------------- meeting slides
 
 function meetingsPage() {
-  const items = MEETINGS.map((m) => `
-  <section class="panel meeting" id="meeting-${esc(m.id)}">
-    <div class="row"><h2>${esc(m.title)}</h2><span class="chip">${esc(m.date)}</span></div>
-    ${m.sub ? `<p class="muted small">${esc(m.sub)}</p>` : ''}
-    ${m.thumb ? `<a class="meeting-thumb" href="${esc(m.thumb)}" target="_blank" rel="noopener"><img src="${esc(m.thumb)}" alt="${esc(`${m.date} ${m.title}`)}" loading="lazy" decoding="async"></a>` : ''}
-    <div class="row">
-      ${m.google ? `<a class="btn primary" href="${esc(m.google)}" target="_blank" rel="noopener">Google Slides에서 열기</a>` : ''}
-      ${m.pptx ? `<a class="btn" href="${esc(m.pptx.href)}" download="${esc(m.pptx.name)}">PPTX 받기 · ${fileSize(m.pptx.size)}</a>` : ''}
-    </div>
-  </section>`).join('');
-  return `
-  <div class="page-head">
+  const cloudOn = store.kind === 'cloud';
+  const head = `<div class="page-head">
     ${back('#/', '홈')}
-    <h1>미팅 자료</h1>
-    <p class="lede">미팅마다 원본 Google Slides와 PPTX 파일이에요.</p>
-  </div>
-  ${items || '<div class="empty"><h2>아직 미팅 자료가 없어요</h2></div>'}`;
+    <div class="row"><h1>미팅 자료</h1><span class="spacer"></span>${cloudOn ? '<button type="button" class="primary" data-act="add-meeting">+ 미팅 추가</button>' : ''}</div>
+    <p class="lede">미팅마다 그림, 슬라이드 링크, Drive 폴더. 파일은 Drive에 있어요.</p>
+  </div>`;
+  if (!cloudOn) return head + needsLogin('미팅 자료는');
+  const items = sortedMeetings().map((m) => `
+  <section class="panel meeting" id="meeting-${esc(m.id)}">
+    <div class="row"><h2>${esc(m.title)}</h2>${m.date ? `<span class="chip">${esc(m.date)}</span>` : ''}<span class="spacer"></span><button type="button" data-act="edit-meeting" data-id="${esc(m.id)}">편집</button></div>
+    ${m.sub ? `<p class="muted small">${esc(m.sub)}</p>` : ''}
+    ${itemBody(m, 'meetings')}
+  </section>`).join('');
+  return `${head}${legacyHint()}${items || '<div class="empty"><h2>아직 미팅 자료가 없어요</h2><p>+ 미팅 추가로 그림과 링크를 넣어요.</p></div>'}`;
+}
+
+// ---------------------------------------------------------------- 자료 지도: where everything is
+
+const sortedPlaces = () => {
+  const list = [...state.places.values()];
+  const groups = [...new Set([...PLACE_GROUPS, ...list.map((p) => p.group || '기타')])];
+  return list.sort((a, b) => groups.indexOf(a.group || '기타') - groups.indexOf(b.group || '기타') || (a.order || 0) - (b.order || 0));
+};
+
+function placesPage() {
+  const list = sortedPlaces();
+  const head = `<div class="page-head">
+    ${back('#/', '홈')}
+    <div class="row"><h1>자료 지도</h1><span class="spacer"></span><button type="button" class="primary" data-act="add-place">+ 장소 추가</button></div>
+    <p class="lede">자료가 어디에 있는지 한눈에. 주소는 누르면 열리고, PC 경로는 복사돼요.</p>
+  </div>`;
+  if (!list.length) {
+    return `${head}<div class="empty"><h2>아직 비어 있어요</h2><p>Drive, Notion, PC 폴더, GitHub, Firebase 같은 기본 목록부터 넣을 수 있어요.</p>
+      <button type="button" class="primary" data-act="seed-places">기본 목록 넣기</button></div>`;
+  }
+  let html = '';
+  let group = null;
+  for (const p of list) {
+    if ((p.group || '기타') !== group) {
+      if (group !== null) html += '</div></section>';
+      group = p.group || '기타';
+      html += `<section class="stack"><h2 class="group-title">${esc(group)}</h2><div class="places">`;
+    }
+    const link = safeLink(p.where);
+    const where = link
+      ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(link.replace(/^https:\/\//, ''))}</a>`
+      : p.where ? `<button type="button" class="link mono" data-act="copy-path" data-path="${esc(p.where)}" title="복사">${esc(p.where)}</button>` : '<span class="warn-t">아직 비어 있어요 · 편집에서 넣어 주세요</span>';
+    html += `
+      <div class="place">
+        <div class="row"><b>${esc(p.label)}</b><span class="spacer"></span><button type="button" class="link" data-act="edit-place" data-id="${esc(p.id)}">편집</button></div>
+        <div class="where">${where}</div>
+        ${p.note ? `<p class="small muted">${esc(p.note)}</p>` : ''}
+      </div>`;
+  }
+  html += '</div></section>';
+  return head + html;
 }
 
 // ---------------------------------------------------------------- step editor
@@ -747,7 +906,51 @@ service cloud.firestore {
   <section class="panel">
     <h2>정보</h2>
     <dl class="kv"><dt>버전</dt><dd class="mono">${VERSION}</dd></dl>
+  </section>
+  ${isCloud ? importPanel() : ''}`;
+}
+
+// The one-time move of the files the site used to serve (legacy-import.js).
+let importing = false;
+let importStatus = '';
+
+function importPanel() {
+  const p = legacyPending(state);
+  const left = p.designs.length + p.meetings.length;
+  if (!left && !p.home && !importStatus) return '';
+  return `
+  <section class="panel">
+    <h2>자료 옮기기</h2>
+    ${left || p.home
+    ? `<p class="small">사이트에 있던 설계 버전 ${p.designs.length}개와 미팅 ${p.meetings.length}개를 앱 기록으로 옮겨요. 미리보기 그림은 Firebase로, 나머지 파일은 각 항목에 "Drive 폴더 안 파일" 목록으로 남아요. 한 번만 하면 돼요.</p>
+      <div class="row"><button type="button" class="primary" data-act="run-import"${importing ? ' disabled' : ''}>옮기기</button></div>`
+    : '<p class="small">다 옮겼어요. 파일을 Drive에 올리고, 항목마다 편집 → Drive 폴더 링크를 붙여 주세요.</p>'}
+    <p class="small" id="import-status" role="status">${esc(importStatus)}</p>
   </section>`;
+}
+
+function sayImport(text) {
+  importStatus = text;
+  const el = document.getElementById('import-status');
+  if (el) el.textContent = text;
+}
+
+async function startImport() {
+  if (importing) return;
+  if (!navigator.onLine) return toast('인터넷 연결이 필요해요.');
+  importing = true;
+  sayImport('시작하는 중…');
+  render();
+  try {
+    const done = await runImport(store, state, who(), sayImport);
+    sayImport(`다 옮겼어요: 설계 ${done.designs.length}개, 미팅 ${done.meetings.length}개.`);
+  } catch (err) {
+    console.error(err);
+    sayImport(`멈췄어요: ${err.message} 다시 누르면 이어서 해요.`);
+  } finally {
+    importing = false;
+    render();
+  }
 }
 
 // ---------------------------------------------------------------- input
@@ -840,6 +1043,16 @@ function onClick(e) {
     case 'edit-board': return boardDialog(currentTarget());
     case 'add-run': return runDialog(null, route().kind);
     case 'edit-run': return runDialog(currentTarget());
+    case 'add-meeting': return itemDialog('meetings', null);
+    case 'edit-meeting': return itemDialog('meetings', state.meetings.get(el.dataset.id));
+    case 'add-design': return itemDialog('designs', null);
+    case 'edit-design': return itemDialog('designs', state.designs.get(el.dataset.id));
+    case 'add-place': return placeDialog(null);
+    case 'edit-place': return placeDialog(state.places.get(el.dataset.id));
+    case 'seed-places': return seedPlaces();
+    case 'copy-path': return copy(el.dataset.path, '경로를 복사했어요');
+    case 'set-home': return setHome(el.dataset.coll, el.dataset.id, el.dataset.file);
+    case 'run-import': return startImport();
     case 'copy-uid': return copy(store.uid, 'UID를 복사했어요');
     case 'copy-rules': return copy($('#rules-text').textContent, '규칙을 복사했어요');
     case 'sign-out': return cloud?.signOut();
@@ -970,6 +1183,225 @@ function boardDialog(board) {
     dlg.close();
     if (!editing) location.hash = `#/b/${encodeURIComponent(obj.id)}`;
   });
+}
+
+function setHome(coll, id, file) {
+  const item = state[coll].get(id);
+  const image = item?.images?.find((im) => im.file === file);
+  if (!image) return;
+  const caption = coll === 'meetings' ? `${item.title} · ${item.date} 미팅` : `${item.title} · ${image.caption || '설계'}`;
+  commit([{ op: 'put', coll: 'config', obj: { id: 'home', image: file, caption, link: coll === 'meetings' ? '#/meetings' : '#/p/array/designs', updatedAt: new Date().toISOString(), updatedBy: who().name } }]);
+  toast('홈 화면 그림으로 정했어요');
+}
+
+// Adds or edits a meeting or a design version: text, the Drive folder, other
+// links, what's in the folder, and preview pictures. New pictures go up when
+// 저장 is pressed; pictures taken out are deleted after.
+function itemDialog(coll, item) {
+  const editing = !!item;
+  const meeting = coll === 'meetings';
+  const today = new Date().toLocaleDateString('sv-SE');
+  const pics = (item?.images || []).map((x) => ({ file: x.file, text: x.caption || '', name: state.files.get(x.file)?.name || '(그림)', size: state.files.get(x.file)?.size || 0 }));
+  const links = (item?.links || []).map((l) => ({ ...l }));
+  const removed = new Set();
+  let busy = false;
+  const title = editing ? (meeting ? '미팅 편집' : '버전 편집') : (meeting ? '새 미팅' : '새 설계 버전');
+  const fields = meeting ? `
+    <label class="field">날짜<input type="date" name="date" value="${esc(item?.date || today)}"></label>
+    <label class="field">제목<input type="text" name="title" value="${esc(item?.title || '')}" required autocomplete="off" placeholder="예: 진행 사항"></label>
+    <label class="field">설명 (선택)<input type="text" name="sub" value="${esc(item?.sub || '')}" autocomplete="off" placeholder="예: 김미도, 최정인 · 15장"></label>` : `
+    <label class="field">이름<input type="text" name="title" value="${esc(item?.title || '')}" required autocomplete="off" placeholder="예: 버전 2-4"></label>
+    <label class="field">날짜<input type="date" name="date" value="${esc(item?.date || today)}"></label>
+    <label class="field">바뀐 점 (한 줄에 하나)<textarea name="points">${esc((item?.points || []).join('\n'))}</textarea></label>`;
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>${title}</h2>
+    ${fields}
+    <label class="field">Drive 폴더 링크<input type="url" name="drive" value="${esc(item?.drive || '')}" autocomplete="off" placeholder="https://drive.google.com/drive/folders/…"></label>
+    <div class="stack att">
+      <span class="lbl">다른 링크 (Google Slides, Notion, 파일 하나 등)</span>
+      <div class="link-rows"></div>
+      <button type="button" class="att-add" data-add-link>+ 링크 추가</button>
+    </div>
+    <label class="field">Drive 폴더 안 파일 (한 줄에 하나, 선택)<textarea name="contents" placeholder="파일 이름 — 설명">${esc(item?.contents || '')}</textarea></label>
+    <div class="stack att">
+      <span class="lbl">미리보기 그림 (png · jpg · svg, ${fileSize(MAX_PICTURE)}까지)</span>
+      <div class="att-rows"></div>
+      <label class="btn att-add">+ 그림 추가<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" multiple hidden></label>
+    </div>
+    <p class="small att-progress" role="status" hidden></p>
+    <div class="actions">
+      ${editing ? '<button type="button" class="danger left" data-del>삭제</button>' : ''}
+      <button type="button" data-cancel>취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>`);
+  const f = dlg.querySelector('form');
+  const picRows = dlg.querySelector('.att-rows');
+  const linkRows = dlg.querySelector('.link-rows');
+  const progress = dlg.querySelector('.att-progress');
+  const say = (text) => {
+    progress.textContent = text;
+    progress.hidden = !text;
+  };
+  const drawPics = () => {
+    picRows.innerHTML = pics.map((r, i) => `
+      <div class="att-row${removed.has(i) ? ' gone' : ''}">
+        <span class="att-name">${esc(r.name)}${r.size ? ` · ${fileSize(r.size)}` : ''}${r.blob ? ' · 새 그림' : ''}</span>
+        <input type="text" data-i="${i}" value="${esc(r.text)}" placeholder="설명" autocomplete="off"${removed.has(i) ? ' disabled' : ''}>
+        <button type="button" data-rm="${i}">${removed.has(i) ? '되살리기' : '빼기'}</button>
+      </div>`).join('') || '<p class="small muted">아직 없어요.</p>';
+  };
+  const drawLinks = () => {
+    linkRows.innerHTML = links.map((l, i) => `
+      <div class="link-row">
+        <input type="text" data-li="${i}" data-k="label" value="${esc(l.label || '')}" placeholder="이름 (예: Google Slides)" autocomplete="off">
+        <input type="url" data-li="${i}" data-k="url" value="${esc(l.url || '')}" placeholder="https://…" autocomplete="off">
+        <button type="button" data-lrm="${i}">빼기</button>
+      </div>`).join('');
+  };
+  drawPics();
+  drawLinks();
+  picRows.addEventListener('input', (e) => {
+    if (e.target.dataset.i !== undefined) pics[Number(e.target.dataset.i)].text = e.target.value;
+  });
+  picRows.addEventListener('click', (e) => {
+    const i = e.target.dataset.rm;
+    if (i === undefined) return;
+    const n = Number(i);
+    if (pics[n].blob) pics.splice(n, 1); // a new pick: just drop it
+    else if (removed.has(n)) removed.delete(n);
+    else removed.add(n);
+    drawPics();
+  });
+  linkRows.addEventListener('input', (e) => {
+    const { li, k } = e.target.dataset;
+    if (li !== undefined) links[Number(li)][k] = e.target.value;
+  });
+  linkRows.addEventListener('click', (e) => {
+    if (e.target.dataset.lrm === undefined) return;
+    links.splice(Number(e.target.dataset.lrm), 1);
+    drawLinks();
+  });
+  dlg.querySelector('[data-add-link]').addEventListener('click', () => {
+    links.push({ label: '', url: '' });
+    drawLinks();
+    linkRows.querySelector(`[data-li="${links.length - 1}"]`)?.focus();
+  });
+  dlg.querySelector('input[type=file]').addEventListener('change', (e) => {
+    const big = [];
+    for (const file of e.target.files) {
+      if (!isPicture(file.type)) big.push(`${file.name}: 그림이 아니에요`);
+      else if (file.size > MAX_PICTURE) big.push(`${file.name}: ${fileSize(file.size)}`);
+      else pics.push({ blob: file, name: file.name, size: file.size, text: baseName(file.name) });
+    }
+    e.target.value = '';
+    say(big.length ? `안 넣은 파일 (${big.join(', ')}). 큰 파일은 Drive에 올리고 링크를 붙여 주세요.` : '');
+    drawPics();
+  });
+  const lock = (on) => {
+    busy = on;
+    f.querySelectorAll('button, input, textarea').forEach((x) => (x.disabled = on));
+  };
+  dlg.addEventListener('cancel', (e) => busy && e.preventDefault()); // Esc while uploading
+  dlg.querySelector('[data-del]')?.addEventListener('click', () => {
+    if (!confirm(`지울까요? ${item.title} · 그림 ${pictureIdsOf(item).length}개. Drive 파일은 그대로 남아요.`)) return;
+    commit([{ op: 'remove', coll, id: item.id }]);
+    forgetFiles(pictureIdsOf(item));
+    dlg.close();
+  });
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const name = f.elements.title.value.trim();
+    if (!name) return f.elements.title.focus();
+    const drive = f.elements.drive.value.trim();
+    const goodLinks = links.map((l) => ({ label: (l.label || '').trim(), url: (l.url || '').trim() })).filter((l) => l.url);
+    if ((drive && !safeLink(drive)) || goodLinks.some((l) => !safeLink(l.url))) return say('링크는 https://로 시작해야 해요.');
+    const fresh = pics.filter((r) => r.blob);
+    if (fresh.length && !navigator.onLine) return say('그림을 올리려면 인터넷 연결이 필요해요.');
+    const id = item?.id || uid();
+    lock(true);
+    try {
+      for (const [n, r] of fresh.entries()) {
+        const meta = await store.uploadFile(r.blob, { owner: `${coll}/${id}`, createdBy: who().name },
+          (i, total) => say(`올리는 중 ${n + 1}/${fresh.length} · ${r.name} ${Math.round((100 * i) / total)}%`));
+        r.file = meta.id;
+      }
+    } catch (err) {
+      console.error(err);
+      forgetFiles(fresh.filter((r) => r.file).map((r) => r.file));
+      fresh.forEach((r) => delete r.file);
+      lock(false);
+      return say(`올리지 못했어요: ${err.message}`);
+    }
+    const now = new Date().toISOString();
+    const obj = {
+      ...(item || { createdAt: now, createdBy: who().name }),
+      id,
+      title: name,
+      date: f.elements.date.value,
+      drive,
+      links: goodLinks.map((l) => ({ label: l.label || '링크', url: l.url })),
+      contents: f.elements.contents.value.trim(),
+      images: pics.filter((r, i) => !removed.has(i) && r.file).map((r) => ({ file: r.file, caption: r.text.trim() })),
+      updatedAt: now,
+      ...(meeting
+        ? { sub: f.elements.sub.value.trim() }
+        : { points: f.elements.points.value.split('\n').map((x) => x.trim()).filter(Boolean) }),
+    };
+    commit([{ op: 'put', coll, obj }]);
+    forgetFiles(pics.filter((r, i) => removed.has(i) && r.file).map((r) => r.file));
+    lock(false);
+    dlg.close();
+    toast('저장했어요');
+  });
+}
+
+// One place on the 자료 지도: a link or a PC path, with a group and a note.
+function placeDialog(place) {
+  const editing = !!place;
+  const groups = [...new Set([...PLACE_GROUPS, ...[...state.places.values()].map((p) => p.group).filter(Boolean)])];
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>${editing ? '장소 편집' : '장소 추가'}</h2>
+    <label class="field">이름<input type="text" name="label" value="${esc(place?.label || '')}" required autocomplete="off" placeholder="예: Google Drive · 측정 데이터"></label>
+    <label class="field">주소 또는 PC 경로<input type="text" name="where" value="${esc(place?.where || '')}" autocomplete="off" placeholder="https://… 또는 C:\\…"></label>
+    <label class="field">묶음<input type="text" name="group" value="${esc(place?.group || groups[0])}" list="place-groups" autocomplete="off"></label>
+    <datalist id="place-groups">${groups.map((g) => `<option value="${esc(g)}">`).join('')}</datalist>
+    <label class="field">메모 (선택)<textarea name="note">${esc(place?.note || '')}</textarea></label>
+    <div class="actions">
+      ${editing ? '<button type="button" class="danger left" data-del>삭제</button>' : ''}
+      <button type="button" data-cancel>취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>`);
+  const f = dlg.querySelector('form');
+  dlg.querySelector('[data-del]')?.addEventListener('click', () => {
+    if (!confirm(`지울까요? ${place.label}`)) return;
+    commit([{ op: 'remove', coll: 'places', id: place.id }]);
+    dlg.close();
+  });
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const label = f.elements.label.value.trim();
+    if (!label) return f.elements.label.focus();
+    const where = f.elements.where.value.trim();
+    if (/^[a-z]+:/i.test(where) && !/^[a-z]:\\/i.test(where) && !safeLink(where)) return toast('주소는 https://로 시작해야 해요.');
+    const maxOrder = Math.max(0, ...[...state.places.values()].map((p) => p.order || 0));
+    const now = new Date().toISOString();
+    commit([{ op: 'put', coll: 'places', obj: {
+      ...(place || { id: uid(), order: maxOrder + 10, createdAt: now, createdBy: who().name }),
+      label, where, group: f.elements.group.value.trim() || '기타', note: f.elements.note.value.trim(), updatedAt: now,
+    } }]);
+    dlg.close();
+  });
+}
+
+function seedPlaces() {
+  const now = new Date().toISOString();
+  commit(SEED_PLACES.map((p, i) => ({ op: 'put', coll: 'places', obj: { id: uid(), ...p, order: (i + 1) * 10, createdAt: now, createdBy: who().name } })));
+  toast('기본 목록을 넣었어요');
 }
 
 function runDialog(run, kindArg) {

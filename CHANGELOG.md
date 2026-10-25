@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 — 2026-10-26
+
+- Files live in **Google Drive**; the app is the map. 미팅 자료 and 어레이 설계
+  are now records you add and edit in the app: title, date, notes, a **Drive
+  folder link**, other links (Google Slides, Notion, …), the list of files in
+  that folder, and **preview pictures** (up to 5 MB each, kept in Firestore,
+  cut into chunks under its 1 MiB document limit).
+- **자료 지도** (home card): where everything lives — Drive, Notion, PC
+  folders, GitHub, Firebase — with a starting list and editing.
+- Any preview picture can be put on the home screen ("홈에 표시").
+- 설정 → **자료 옮기기**: a one-time move of what the site used to serve into
+  these records (pictures to Firestore, other files listed for Drive).
+- Meetings, designs and pictures need sign-in; only the two allowed accounts see them.
+- `?dev` on localhost runs the app on an in-memory store, for trying the file screens.
+
 ## 0.4.0 — 2026-10-25
 
 - **미팅 자료**: a meeting slides archive (home card and page). Each meeting has

@@ -1,6 +1,8 @@
 import { backupFile, csvFor, parseBackup } from '../js/backup.js';
 import { ARRAY_DESIGNS } from '../js/designs.js';
 import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
+import { CHUNK, MAX_PICTURE, baseName, chunkCount, chunkId, chunkRanges, fileSize, isPicture, typeOf } from '../js/files.js';
+import { contentsOf as legacyContents, pending as legacyPending } from '../js/legacy-import.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
 import {
   deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolPut, removeStep, runProgress, runSteps, stepCount,
@@ -243,6 +245,52 @@ test('backup round trip, and a 0.1 backup without runs still loads', () => {
   let threw = false;
   try { parseBackup('{"app":"planner"}'); } catch { threw = true; }
   eq(threw, true, 'foreign backup rejected');
+});
+
+// ---- files kept in Firestore
+test('chunks: cover the file exactly, each under the 1 MiB document limit', () => {
+  for (const size of [0, 1, CHUNK - 1, CHUNK, CHUNK + 1, 33442888]) {
+    const r = chunkRanges(size);
+    eq(r.length, chunkCount(size), `count for ${size}`);
+    eq(r[0][0], 0);
+    eq(r[r.length - 1][1], size, `end for ${size}`);
+    for (let i = 1; i < r.length; i++) eq(r[i][0], r[i - 1][1], 'no gap');
+    if (r.some(([a, b]) => b - a > CHUNK)) throw new Error('chunk too big');
+  }
+  if (CHUNK + 2000 > 1048576) throw new Error('chunk plus overhead over 1 MiB');
+  eq(chunkCount(33442888), 37);
+  eq(chunkId(7), '0007');
+});
+
+test('file types: pictures shown, drawings and decks downloaded', () => {
+  eq(typeOf('a.PNG'), 'image/png');
+  eq(typeOf('deck.pptx'), 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+  eq(typeOf('x.bin'), 'application/octet-stream');
+  eq(typeOf('a.png', 'image/webp'), 'image/webp', 'browser type wins');
+  eq([isPicture('image/png'), isPicture('image/svg+xml'), isPicture('image/vnd.dxf'), isPicture('application/zip')], [true, true, false, false]);
+  eq(baseName('v2-3_stack.png'), 'v2-3_stack');
+  eq([fileSize(13444), fileSize(33442888)], ['13 KB', '33.4 MB']);
+});
+
+test('moving site files: only entries not yet in Firestore are pending', () => {
+  const st = { designs: new Map(), meetings: new Map(), config: new Map() };
+  let p = legacyPending(st);
+  eq([p.designs.length, p.meetings.length, p.home], [ARRAY_DESIGNS.length, MEETINGS.length, true]);
+  st.designs.set('v2-3', {});
+  st.meetings.set(MEETINGS[0].id, {});
+  st.config.set('home', {});
+  p = legacyPending(st);
+  eq([p.designs.map((d) => d.id).includes('v2-3'), p.meetings.length, p.home], [false, 0, false]);
+});
+
+test('moving site files: pictures fit the limit, other files become Drive folder lines', () => {
+  for (const d of ARRAY_DESIGNS) for (const im of d.images) if (!isPicture(typeOf(im.src))) throw new Error(`${im.src} is not a picture`);
+  const v23 = ARRAY_DESIGNS.find((d) => d.id === 'v2-3');
+  const lines = legacyContents(v23).split('\n');
+  eq(lines.length, v23.files.length);
+  eq(lines[0], 'array_v2-3_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber');
+  eq(legacyContents(MEETINGS[0]), '초음파 260911 미팅 (260903~).pptx — 슬라이드 원본 (PPTX)');
+  if (MAX_PICTURE > 50 * CHUNK) throw new Error('picture limit too big for chunks');
 });
 
 // ---- design files: every picture and file listed exists, at the listed size

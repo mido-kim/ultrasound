@@ -6,7 +6,9 @@
 //   apply(ops)     applies [{ op: 'put' | 'remove', coll, obj | id }] together
 
 export const LOCAL_KEY = 'usbringup.data.v1';
-export const COLLS = ['boards', 'results', 'runs', 'protocols'];
+export const COLLS = ['boards', 'results', 'runs', 'protocols', 'meetings', 'designs', 'places', 'config', 'files'];
+// Preview pictures live in Firestore only: this browser's storage holds a few MB at most.
+const NEEDS_LOGIN = '그림은 로그인해야 올리고 볼 수 있어요.';
 
 export function readLocalData() {
   const empty = () => Object.fromEntries(COLLS.map((c) => [c, {}]));
@@ -59,6 +61,15 @@ export function localStore() {
         // Storage full or blocked: the change stays for this session.
       }
       emit();
+    },
+    async uploadFile() {
+      throw new Error(NEEDS_LOGIN);
+    },
+    async readFile() {
+      throw new Error(NEEDS_LOGIN);
+    },
+    async deleteFile() {
+      throw new Error(NEEDS_LOGIN);
     },
   };
 }
