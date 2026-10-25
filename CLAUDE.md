@@ -44,6 +44,13 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   into `drafts` and is saved after `SAVE_MS` or on blur. The step editor works
   on a copy (`protoEdit`) saved as it changes. `boot()` is called at the end
   of the file so every const exists before the first render.
+- `js/designs.js` + `designs/array/<version>/`: the 어레이 설계 page (route
+  `#/p/array/designs`). Files there are **copies**; the originals stay in the
+  project folder (`../US_array_v1.zip`, `../array_v1*`, `../array_v2_fpc/`).
+  New version: copy its files and previews in, add an entry (newest first)
+  with exact byte sizes; the tests check every listed file exists at that size.
+  Preview SVGs are rendered from the Gerbers with gerbonara (flex colours);
+  the repo is public, so everything here is downloadable by anyone.
 - `js/guide.js`: board reference HTML (maps, tables, power order, symptoms,
   open questions), shortened from `../us_control_v5.4_pcb_bringup_guide.html`.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from

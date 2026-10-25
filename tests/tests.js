@@ -1,4 +1,5 @@
 import { backupFile, csvFor, parseBackup } from '../js/backup.js';
+import { ARRAY_DESIGNS } from '../js/designs.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
 import {
   deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolPut, removeStep, runProgress, runSteps, stepCount,
@@ -242,6 +243,27 @@ test('backup round trip, and a 0.1 backup without runs still loads', () => {
   try { parseBackup('{"app":"planner"}'); } catch { threw = true; }
   eq(threw, true, 'foreign backup rejected');
 });
+
+// ---- design files: every picture and file listed exists, at the listed size
+{
+  const bad = [];
+  const ids = new Set();
+  for (const d of ARRAY_DESIGNS) {
+    if (ids.has(d.id)) bad.push(`duplicate id ${d.id}`);
+    ids.add(d.id);
+    for (const { src } of d.images) {
+      const r = await fetch(`../${src}`, { method: 'HEAD', cache: 'no-store' });
+      if (!r.ok) bad.push(`${src}: ${r.status}`);
+    }
+    for (const { href, size } of d.files) {
+      const r = await fetch(`../${href}`, { method: 'HEAD', cache: 'no-store' });
+      const len = Number(r.headers.get('content-length'));
+      if (!r.ok) bad.push(`${href}: ${r.status}`);
+      else if (len && len !== size) bad.push(`${href}: ${len} bytes, listed ${size}`);
+    }
+  }
+  results.push([!bad.length, 'design files: all listed pictures and files exist', bad.join('\n      ')]);
+}
 
 // ---- report
 const pass = results.filter((r) => r[0]).length;

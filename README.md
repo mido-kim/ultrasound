@@ -16,6 +16,7 @@
 - **어레이 제작**, **팬텀 제작.** 프로토콜 단계는 앱에서 직접 적어요 (단계 편집). 배치 (B1, B2…)나 팬텀 (P1, P2…)을 만들 때마다 그 단계로 체크리스트가 생겨요.
   - 단계마다 완료 · 문제 · 건너뜀, 값 (켜 둔 단계만), 메모를 남겨요.
   - 단계를 고치면 모든 배치에 바로 보여요. 기록이 있는 단계를 지우면 그 배치에는 "프로토콜에서 뺀 단계"로 남아요.
+- **어레이 설계** (어레이 제작 → 설계 파일). 버전 1 · 2-1 · 2-2 · 2-3의 미리보기 그림과 원본 파일 (JLC Gerber, KiCad, AutoCAD · DXF). 파일은 `designs/array/`에 있는 복사본이고, 저장소가 공개라 주소를 알면 누구나 받을 수 있어요.
 - **설정.** 이름, 테마, 계정 · UID, 결과표 CSV, JSON 백업 · 복원.
 
 보드 검증 절차의 출처는 `../us_control_v5.4_pcb_bringup_guide.html`. 절차를 바꾸면 `js/steps.js`와 `js/guide.js`를 고쳐요.
@@ -60,6 +61,7 @@ http://localhost:5174 를 열어요. "로그인 없이 이 기기에서만 쓰�
 | `js/protocols.js` | 어레이 · 팬텀 프로토콜과 배치 |
 | `js/backup.js` | 결과표 CSV, JSON 백업 |
 | `js/guide.js` | 보드 지도와 표 |
+| `js/designs.js`, `designs/array/` | 어레이 설계 버전 목록, 미리보기 그림과 파일 |
 | `js/store.js`, `js/cloud.js` | 이 기기 저장 / Firebase 공유 저장 (같은 인터페이스) |
 | `js/config.js` | Firebase 프로젝트 (`ultrasound-ebd93`) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | 오프라인과 설치 |

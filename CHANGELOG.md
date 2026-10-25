@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-10-25
+
+- 어레이 제작 → **설계 파일**: array versions 1, 2-1, 2-2 and 2-3 with
+  preview pictures (Gerber renders and the stack diagrams) and their files to
+  download: JLC Gerber zips, KiCad boards, order notes, the v2 generator, and
+  for version 1 the EasyEDA Gerbers, AutoCAD drawing and DXFs.
+- A test checks that every listed picture and file is on the server at the
+  listed size.
+
 ## 0.2.0 — 2026-10-25
 
 - Renamed to **Wearable Ultrasound**. A home screen leads to three parts:

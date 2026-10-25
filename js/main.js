@@ -5,6 +5,7 @@
 
 import { backupFile, csvFor, parseBackup } from './backup.js';
 import { firebaseConfig } from './config.js';
+import { ARRAY_DESIGNS } from './designs.js';
 import { GUIDE_HTML } from './guide.js';
 import { describeSpec, judge } from './judge.js';
 import {
@@ -123,12 +124,14 @@ function toast(text) {
 // ---------------------------------------------------------------- routing
 
 // '#/' home · '#/boards' · '#/b/<id>[/<stage n>]' one board · '#/guide' ·
-// '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/r/<id>' one run · '#/settings'
+// '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/p/array/designs' design files ·
+// '#/r/<id>' one run · '#/settings'
 function route() {
   const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (a === 'boards') return { view: 'boards' };
   if (a === 'b' && b) return { view: 'board', targetId: decodeURIComponent(b), stage: c !== undefined ? Number(c) : null };
   if (a === 'guide') return { view: 'guide' };
+  if (a === 'p' && b === 'array' && c === 'designs') return { view: 'designs', kind: b };
   if (a === 'p' && PROTO_KINDS[b]) return { view: c === 'edit' ? 'edit' : 'proto', kind: b };
   if (a === 'r' && b) return { view: 'run', targetId: decodeURIComponent(b) };
   if (a === 'settings') return { view: 'settings' };
@@ -166,7 +169,7 @@ function render(newPage = false) {
   const anchorTop = anchor?.getBoundingClientRect().top;
   const r = route();
   const pages = {
-    boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind),
+    boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
     edit: () => editPage(r.kind), run: () => runPage(r), settings: settingsPage, home: homePage,
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
@@ -471,7 +474,7 @@ function protoPage(kind) {
   const addBtn = `<button type="button" class="primary" data-act="add-run">+ 새 ${K.item}</button>`;
   const head = `<div class="page-head">
     ${back('#/', '홈')}
-    <div class="row"><h1>${K.name}</h1><span class="spacer"></span><a class="btn" href="#/p/${kind}/edit">단계 편집</a>${n ? addBtn : ''}</div>
+    <div class="row"><h1>${K.name}</h1><span class="spacer"></span>${kind === 'array' ? '<a class="btn" href="#/p/array/designs">설계 파일</a>' : ''}<a class="btn" href="#/p/${kind}/edit">단계 편집</a>${n ? addBtn : ''}</div>
     ${n ? `<p class="muted small">프로토콜 단계 ${n}개${protocol.updatedAt ? ` · ${esc(protocol.updatedBy || '')} ${when(protocol.updatedAt)} 수정` : ''}</p>` : ''}
   </div>`;
   if (!n) {
@@ -538,6 +541,35 @@ function runPage(r) {
     ${progressBar(runProgress(run, protocol, state.results))}
   </div>
   ${body}`;
+}
+
+// ---------------------------------------------------------------- array design files
+
+const fileSize = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
+
+function designsPage() {
+  const versions = ARRAY_DESIGNS.map((d) => `
+  <section class="panel design" id="design-${esc(d.id)}">
+    <div class="row"><h2>${esc(d.title)}</h2><span class="chip">${esc(d.date)}</span></div>
+    <ul class="small">${d.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+    <div class="figs">${d.images.map((i) => `
+      <figure>
+        <a href="${esc(i.src)}" target="_blank" rel="noopener"><img src="${esc(i.src)}" alt="${esc(`${d.title} ${i.caption}`)}" loading="lazy" decoding="async"></a>
+        <figcaption>${esc(i.caption)}</figcaption>
+      </figure>`).join('')}
+    </div>
+    <ul class="files">${d.files.map((f) => `
+      <li><a href="${esc(f.href)}" download>${esc(f.href.split('/').pop())}</a><span class="muted">${esc(f.label)} · ${fileSize(f.size)}</span></li>`).join('')}
+    </ul>
+  </section>`).join('');
+  return `
+  <div class="page-head">
+    ${back('#/p/array', PROTO_KINDS.array.name)}
+    <h1>어레이 설계</h1>
+    <p class="lede">버전별 미리보기와 원본 파일이에요. 그림을 누르면 크게 열려요.</p>
+  </div>
+  <nav class="guide-nav">${ARRAY_DESIGNS.map((d) => `<a href="#/p/array/designs" data-scroll="design-${esc(d.id)}">${esc(d.title)}</a>`).join('')}</nav>
+  ${versions}`;
 }
 
 // ---------------------------------------------------------------- step editor
