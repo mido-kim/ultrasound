@@ -369,9 +369,14 @@ function guidePage() {
 
 function settingsPage() {
   const isCloud = store.kind === 'cloud';
-  const rules = `match /bringup/{project}/{document=**} {
-  allow read, write: if request.auth != null
-    && request.auth.uid in ['${isCloud ? store.uid : '미도 UID'}', '정인 UID'];
+  const rules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /bringup/{project}/{document=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid in ['${isCloud ? store.uid : '내 UID'}', '상대방 UID'];
+    }
+  }
 }`;
   const account = isCloud
     ? `<dl class="kv">
@@ -380,7 +385,7 @@ function settingsPage() {
       </dl>
       <div class="row"><button type="button" data-act="copy-uid">UID 복사</button><button type="button" data-act="sign-out">로그아웃</button></div>
       <h3>공유 설정</h3>
-      <p class="small">기록은 <code>bringup/us-control-v5/</code> 아래에 있고, Firestore 규칙에 UID가 들어 있는 계정만 읽고 쓸 수 있습니다. 두 사람이 각자 로그인해서 UID를 확인한 뒤, Firebase 콘솔 → Firestore → 규칙에서 Planner 규칙 옆에 아래 블록을 넣고 게시하세요. 자세한 순서는 README에 있습니다.</p>
+      <p class="small">기록은 <code>bringup/us-control-v5/</code> 아래에 있고, Firestore 규칙에 UID가 들어 있는 계정만 읽고 쓸 수 있습니다. 두 사람이 각자 로그인해서 UID를 확인한 뒤, Firebase 콘솔 → Firestore → 규칙의 내용을 아래로 모두 바꾸고 '상대방 UID'를 상대방의 UID로 고쳐 게시하세요. 자세한 순서는 README에 있습니다.</p>
       <pre class="rules" id="rules-text">${esc(rules)}</pre>
       <div class="row"><button type="button" data-act="copy-rules">규칙 복사</button></div>`
     : `<p>지금은 <b>이 기기에만</b> 저장합니다. 동기화 없이 이 브라우저에만 남습니다.</p>

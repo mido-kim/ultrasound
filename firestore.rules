@@ -1,20 +1,13 @@
 rules_version = '2';
 
-// The whole rule set for the Firebase project calendar-ba843, which this app
-// shares with the Planner app. Paste ALL of it into Firebase console →
-// Firestore Database → Rules and Publish: the first block keeps Planner
-// working, the second lets exactly two accounts share the bring-up records.
+// The whole rule set for this app's Firebase project (ultrasound-ebd93). Paste
+// ALL of it into Firebase console → Firestore Database → Rules and Publish:
+// exactly two accounts share the bring-up records, and nothing else is allowed.
 //
 // Replace the two UIDs with the ones each person sees in this app under
 // 설정 → 동기화 after signing in (or Firebase console → Authentication → Users).
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Planner: each account reads and writes only its own data.
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-
-    // US Control bring-up: shared by the accounts listed here.
     match /bringup/{project}/{document=**} {
       allow read, write: if request.auth != null
         && request.auth.uid in ['MIDO_UID', 'JEONGIN_UID'];

@@ -45,10 +45,15 @@ Result: `{ id: boardId__stepId, boardId, stepId, status: '' | 'pass' | 'fail'
 | 'skip', value, note, by, byUid, at }`.
 
 Firestore: `bringup/us-control-v5/boards/{id}`,
-`bringup/us-control-v5/results/{id}` in the Firebase project `calendar-ba843`
-(shared with Planner, whose data is under `users/{uid}`). Access is a UID
-allowlist in `firestore.rules`; the user pastes the whole file into the
-console. Per-device settings (name, theme, mode) are in localStorage.
+`bringup/us-control-v5/results/{id}` in the app's own Firebase project
+`ultrasound-ebd93` (`js/config.js`; kept apart from Planner's project on
+purpose). Access is a UID allowlist in `firestore.rules`; the user pastes the
+whole file into the console. Per-device settings (name, theme, mode) are in
+localStorage.
+
+Deploy: GitHub `mido-kim/ultrasound` (this folder is the repo root), Pages from
+`main` / root → https://mido-kim.github.io/ultrasound/. Commit as the repo's
+local identity (set in `.git/config`).
 
 ## Working here
 

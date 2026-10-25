@@ -24,21 +24,23 @@ http://localhost:5174 를 엽니다. 로그인 화면에서 "로그인 없이 �
 
 ## 정인과 공유하기 (Firebase, 한 번만)
 
-Planner와 같은 Firebase 프로젝트(`calendar-ba843`)를 씁니다. 데이터는 따로 저장됩니다(Planner는 `users/…`, 이 앱은 `bringup/us-control-v5/…`). Planner의 기록이 이 앱에서 보이거나, 이 앱의 기록이 Planner에서 보이는 일은 없습니다.
+이 앱 전용 Firebase 프로젝트(`ultrasound-ebd93`)를 씁니다. Planner의 Firebase 프로젝트와는 계정도 데이터도 따로입니다. Planner에 로그인해 있어도 이 앱에는 따로 로그인합니다. 기록은 `bringup/us-control-v5/…`에 저장됩니다.
 
-1. **각자 계정.** 미도는 Planner에서 쓰는 계정으로 로그인합니다. 정인은 로그인 화면에서 **계정 만들기**를 한 번 합니다. Firebase 콘솔에서 새 계정 만들기를 꺼 두었다면, Firebase 콘솔 → Authentication → Users → **사용자 추가**로 정인의 이메일과 임시 비밀번호를 만들어 주세요.
+콘솔에서 미리 해 둔 것: Authentication의 이메일/비밀번호 로그인 켜기, Firestore 데이터베이스 만들기(프로덕션 모드), Authentication → Settings → 승인된 도메인에 `mido-kim.github.io` 추가.
+
+1. **각자 계정.** 두 사람 모두 앱의 로그인 화면에서 **계정 만들기**를 한 번 합니다. Planner와 같은 이메일을 써도 되지만, 별개의 계정입니다. 콘솔에서 새 계정 만들기를 꺼 두었다면 Firebase 콘솔 → Authentication → Users → **사용자 추가**로 만들어 주세요.
 2. **UID 확인.** 두 사람이 각자 로그인해서 **설정 → 동기화**의 UID를 확인합니다(Firebase 콘솔 → Authentication → Users의 "사용자 UID"와 같은 값). 처음에는 "공유 기록에 접근할 수 없습니다"가 뜨는 것이 정상입니다.
-3. **규칙 게시.** Firebase 콘솔 → Firestore Database → **규칙** 탭에서 내용을 [firestore.rules](firestore.rules) 전체로 바꾸고, `MIDO_UID` · `JEONGIN_UID`를 두 UID로 고친 뒤 **게시**합니다. 첫 블록은 Planner가 쓰는 규칙이라 꼭 함께 넣어야 합니다.
+3. **규칙 게시.** Firebase 콘솔 → Firestore Database → **규칙** 탭에서 내용을 [firestore.rules](firestore.rules) 전체로 바꾸고, `MIDO_UID` · `JEONGIN_UID`를 두 UID로 고친 뒤 **게시**합니다.
 4. 앱을 새로고침하면 두 계정이 같은 보드와 기록을 봅니다. 한쪽이 기록하면 다른 쪽 화면에도 바로 나타납니다.
 
-설정 → 동기화의 "규칙 복사" 버튼은 내 UID를 채운 공유 블록만 복사합니다. 붙여 넣을 때 Planner 블록을 지우지 않게 주의하세요.
+설정 → 동기화의 "규칙 복사" 버튼은 내 UID를 채운 규칙 전체를 복사합니다. 붙여 넣고 '상대방 UID'만 고치면 됩니다.
 
 ## 온라인에 올리기 (GitHub Pages)
 
 저장소는 https://github.com/mido-kim/ultrasound 이고, 이 폴더가 저장소의 루트입니다.
 
 1. GitHub → 저장소 Settings → Pages → Source: "Deploy from a branch" → `main`, `/ (root)` → Save. 1~2분 뒤 https://mido-kim.github.io/ultrasound/ 에 앱이 열립니다.
-2. Planner가 이미 `mido-kim.github.io`에 있어서 Firebase의 허용 도메인(Authentication → Settings → Authorized domains)은 따로 추가하지 않아도 됩니다. 목록에 없으면 추가하세요.
+2. Firebase 콘솔 → Authentication → Settings → 승인된 도메인(Authorized domains)에 `mido-kim.github.io`가 있어야 합니다.
 
 나중에 고치면 `git push`만 하면 되고, 기기는 다음에 온라인으로 열 때 새 버전을 받습니다.
 
@@ -59,4 +61,5 @@ Planner와 같은 Firebase 프로젝트(`calendar-ba843`)를 씁니다. 데이�
 | `js/guide.js` | 가이드 화면 (보드 지도와 표) |
 | `js/store.js`, `js/cloud.js` | 이 기기 저장 / Firebase 공유 저장 (같은 인터페이스) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | 오프라인과 설치 |
-| `firestore.rules` | Firebase 규칙 전체 (Planner 블록 포함) |
+| `js/config.js` | 이 앱의 Firebase 프로젝트 (`ultrasound-ebd93`) |
+| `firestore.rules` | Firebase 규칙 전체 |

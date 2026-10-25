@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 — 2026-10-25
+
+- Own Firebase project (`ultrasound-ebd93`), apart from Planner's: separate
+  accounts, and `firestore.rules` holds only this app's rule. "규칙 복사" in
+  설정 now copies the whole rule set.
+
 ## 0.1.0 — 2026-10-23
 
 First version, made from `us_control_v5.4_pcb_bringup_guide.html`.

@@ -3,7 +3,7 @@
 // later. Everyone allowed by firestore.rules reads and writes the same data:
 //   bringup/{PROJECT}/boards/{id}
 //   bringup/{PROJECT}/results/{boardId}__{stepId}
-// It uses the same Firebase project as the Planner app (separate data).
+// The Firebase project is this app's own (config.js), not the Planner app's.
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.6.0';
 export const PROJECT = 'us-control-v5';
