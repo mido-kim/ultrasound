@@ -1,7 +1,7 @@
 {
-  "name": "US Control 브링업",
-  "short_name": "브링업",
-  "description": "US Control 메인 v5.4 · HV v5.1 PCB를 보드마다 단계별로 검증하고 기록합니다.",
+  "name": "Wearable Ultrasound",
+  "short_name": "Wearable US",
+  "description": "웨어러블 초음파: 회로 보드 검증, 어레이 · 팬텀 제작 체크리스트.",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
@@ -9,9 +9,26 @@
   "background_color": "#f4f6f5",
   "theme_color": "#ffffff",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ]
 }

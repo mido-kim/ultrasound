@@ -4,17 +4,19 @@
 // version in the URL and are served from the saved copy. Google Fonts are
 // saved the first time they load, so the fonts also work offline.
 
-const CACHE = 'usbringup-v1';
+const CACHE = 'usbringup-v2';
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
   'css/app.css',
+  'js/backup.js',
   'js/cloud.js',
   'js/config.js',
   'js/guide.js',
   'js/judge.js',
   'js/main.js',
+  'js/protocols.js',
   'js/records.js',
   'js/settings.js',
   'js/steps.js',
@@ -31,7 +33,9 @@ const SLOW_NETWORK_MS = 2500;
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Fresh copies, not the browser's HTTP cache: a new main.js with an old
+  // records.js would break the module imports.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

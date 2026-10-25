@@ -3,7 +3,12 @@
 // later. Everyone allowed by firestore.rules reads and writes the same data:
 //   bringup/{PROJECT}/boards/{id}
 //   bringup/{PROJECT}/results/{boardId}__{stepId}
+//   bringup/{PROJECT}/runs/{id}           array batches and phantoms
+//   bringup/{PROJECT}/protocols/{kind}    'array' and 'phantom' step lists
+// (The path keeps its first name, "bringup", so the rules didn't change.)
 // The Firebase project is this app's own (config.js), not the Planner app's.
+
+import { COLLS } from './store.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.6.0';
 export const PROJECT = 'us-control-v5';
@@ -37,7 +42,7 @@ export async function connectCloud(config) {
         subscribe(fn) {
           const maps = {};
           const pending = {};
-          const colls = ['boards', 'results'];
+          const colls = COLLS;
           const emit = () => {
             if (colls.every((c) => maps[c])) fn({ ...maps, pending: colls.some((c) => pending[c]) });
           };

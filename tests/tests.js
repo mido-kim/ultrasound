@@ -1,6 +1,10 @@
+import { backupFile, csvFor, parseBackup } from '../js/backup.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
 import {
-  boardProgress, csvFor, deleteBoardOps, earlierUnfinished, over50, parseBackup, backupFile, resultId, resultOps, starterBoards,
+  deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolPut, removeStep, runProgress, runSteps, stepCount,
+} from '../js/protocols.js';
+import {
+  boardProgress, deleteBoardOps, earlierUnfinished, newBoard, nextBoardName, over50, resultId, resultOps,
 } from '../js/records.js';
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 
@@ -74,61 +78,57 @@ test('steps: ids unique, every stage has steps for each of its kinds, valid kind
   for (const s of STEPS) if (s.spec && s.rec) throw new Error(`${s.id} is both measured and record-only`);
 });
 
-test('stagesFor: kinds get their stages, numbers follow order', () => {
-  eq(stagesFor('main').map((s) => s.n), [0, 1, 3, 4]);
-  eq(stagesFor('hv').map((s) => s.n), [0, 1, 2]);
-  eq(stagesFor('system').map((s) => s.n), [5, 6, 7]);
+test('stagesFor: kinds get their stages, shown numbers count from 1 per kind', () => {
+  eq(stagesFor('main').map((s) => [s.n, s.shown]), [[0, 1], [1, 2], [3, 3], [4, 4]]);
+  eq(stagesFor('hv').map((s) => [s.n, s.shown]), [[0, 1], [1, 2], [2, 3]]);
+  eq(stagesFor('system').map((s) => [s.n, s.shown]), [[5, 1], [6, 2], [7, 3]]);
   const s2 = stagesFor('hv').find((s) => s.n === 2);
-  eq(s2.steps[0].no, '2-1');
-  eq(s2.steps[0].id, 'h2.iin');
+  eq([s2.steps[0].no, s2.steps[0].id], ['3-1', 'h2.iin']);
 });
 
-// ---- records
-const mk = () => {
-  const boards = new Map(starterBoards(who).map((b) => [b.id, b]));
-  return { boards, results: new Map() };
-};
+// ---- boards
+function mk() {
+  const add = (fields) => newBoard(fields, who);
+  const m1 = add({ kind: 'main', name: '메인 #1' });
+  const m2 = add({ kind: 'main', name: '메인 #2' });
+  const h1 = add({ kind: 'hv', name: 'HV #1' });
+  const h2 = add({ kind: 'hv', name: 'HV #2' });
+  const s1 = add({ kind: 'system', name: '메인 #1 + HV #1', mainId: m1.id, hvId: h1.id });
+  const s2 = add({ kind: 'system', name: '메인 #2 + HV #2', mainId: m2.id, hvId: h2.id });
+  return { boards: new Map([m1, m2, h1, h2, s1, s2].map((b) => [b.id, b])), results: new Map(), m1, m2, h1, h2, s1, s2 };
+}
 const put = (results, ops) => ops.forEach((o) => (o.op === 'put' ? results.set(o.obj.id, o.obj) : results.delete(o.id)));
-const byName = (boards, n) => [...boards.values()].find((b) => b.name === n);
 
-test('starterBoards: 2 builds, systems link their pair', () => {
+test('nextBoardName: one past the highest number of that kind', () => {
   const { boards } = mk();
-  eq([...boards.values()].map((b) => b.name), ['메인 #1', '메인 #2', 'HV #1', 'HV #2', '시스템 #1', '시스템 #2']);
-  const s1 = byName(boards, '시스템 #1');
-  eq(boards.get(s1.mainId).name, '메인 #1');
-  eq(boards.get(s1.hvId).name, 'HV #1');
+  eq(nextBoardName(boards, 'main'), '메인 #3');
+  eq(nextBoardName(new Map(), 'hv'), 'HV #1');
 });
 
 test('resultOps keeps fields not changed, progress counts pass and skip', () => {
-  const { boards, results } = mk();
-  const hv = byName(boards, 'HV #1');
-  put(results, resultOps(results, hv.id, 'h2.p48', { value: '49.8' }, who));
-  put(results, resultOps(results, hv.id, 'h2.p48', { status: 'pass' }, who));
-  const r = results.get(resultId(hv.id, 'h2.p48'));
+  const { results, h1 } = mk();
+  put(results, resultOps(results, h1.id, 'h2.p48', { value: '49.8' }, who));
+  put(results, resultOps(results, h1.id, 'h2.p48', { status: 'pass' }, who));
+  const r = results.get(resultId(h1.id, 'h2.p48'));
   eq([r.value, r.status, r.by], ['49.8', 'pass', '미도']);
-  put(results, resultOps(results, hv.id, 'h2.rip', { status: 'skip' }, who));
-  put(results, resultOps(results, hv.id, 'h2.n48', { status: 'fail' }, who));
-  const p = boardProgress(hv, results);
+  put(results, resultOps(results, h1.id, 'h2.rip', { status: 'skip' }, who));
+  put(results, resultOps(results, h1.id, 'h2.n48', { status: 'fail' }, who));
+  const p = boardProgress(h1, results);
   eq([p.done, p.fail], [2, 1]);
 });
 
 test('earlierUnfinished: own earlier stages, and for a system its pair', () => {
-  const { boards, results } = mk();
-  const m1 = byName(boards, '메인 #1');
-  const s1 = byName(boards, '시스템 #1');
-  eq(earlierUnfinished(m1, 0, boards, results).length, 0, 'stage 0 has nothing before it');
+  const { boards, results, m1, s1 } = mk();
+  eq(earlierUnfinished(m1, 0, boards, results).length, 0, 'the first stage has nothing before it');
   eq(earlierUnfinished(m1, 3, boards, results).map((g) => g.stage.n), [0, 1]);
   const sys = earlierUnfinished(s1, 5, boards, results);
   eq(sys.map((g) => `${g.label}${g.stage.n}`), ['메인0', '메인1', '메인3', '메인4', 'HV0', 'HV1', 'HV2']);
-  // pass everything on 메인 #1 stage 0
   for (const st of stagesFor('main')[0].steps) put(results, resultOps(results, m1.id, st.id, { status: 'pass' }, who));
   eq(earlierUnfinished(m1, 1, boards, results).length, 0);
 });
 
 test('over50 flags HV readings above 50 V on the HV board and its system', () => {
-  const { boards, results } = mk();
-  const h1 = byName(boards, 'HV #1');
-  const s1 = byName(boards, '시스템 #1');
+  const { boards, results, h1, s1 } = mk();
   put(results, resultOps(results, h1.id, 'h2.p48', { value: '49.9' }, who));
   eq(over50(h1, boards, results).length, 0);
   put(results, resultOps(results, h1.id, 'h2.n48', { value: '-51.2' }, who));
@@ -137,35 +137,107 @@ test('over50 flags HV readings above 50 V on the HV board and its system', () =>
 });
 
 test('deleteBoardOps removes the board and only its results', () => {
-  const { boards, results } = mk();
-  const m1 = byName(boards, '메인 #1');
-  const m2 = byName(boards, '메인 #2');
+  const { results, m1, m2 } = mk();
   put(results, resultOps(results, m1.id, 'm0.ics', { status: 'pass' }, who));
   put(results, resultOps(results, m2.id, 'm0.ics', { status: 'pass' }, who));
-  const ops = deleteBoardOps(m1, results);
-  eq(ops.map((o) => o.id), [m1.id, resultId(m1.id, 'm0.ics')]);
+  eq(deleteBoardOps(m1, results).map((o) => o.id), [m1.id, resultId(m1.id, 'm0.ics')]);
 });
 
-test('csv: header, one row per step per board, quoting', () => {
-  const { boards, results } = mk();
-  const m1 = byName(boards, '메인 #1');
+// ---- protocols
+function proto() {
+  const sec = { ...newProtoStep('section'), title: 'FPC 준비' };
+  const a = { ...newProtoStep('step'), title: 'a' };
+  const b = { ...newProtoStep('step'), title: 'b', value: true, unit: '°C' };
+  const sec2 = { ...newProtoStep('section'), title: '본딩' };
+  const c = { ...newProtoStep('step'), title: 'c' };
+  const protocol = { id: 'array', kind: 'array', steps: [sec, a, b, sec2, c] };
+  return { protocol, sec, a, b, sec2, c };
+}
+
+test('runSteps numbers steps through sections, progress counts done and fail', () => {
+  const { protocol, a, b, c } = proto();
+  const run = newRun({ kind: 'array', name: 'B2' }, who);
+  const results = new Map();
+  eq(runSteps(protocol, run, results).map((s) => s.no || s.title), ['FPC 준비', '1', '2', '본딩', '3']);
+  put(results, resultOps(results, run.id, a.id, { status: 'pass' }, who));
+  put(results, resultOps(results, run.id, b.id, { status: 'fail', value: '70' }, who));
+  const p = runProgress(run, protocol, results);
+  eq([p.total, p.done, p.fail, p.next.id], [3, 1, 1, b.id]);
+  eq(stepCount(protocol), 3);
+  put(results, resultOps(results, run.id, c.id, { status: 'skip' }, who));
+  eq(runProgress(run, protocol, results).done, 2);
+});
+
+test('removeStep keeps a step with results (only where recorded), drops one without', () => {
+  const { protocol, a, b } = proto();
+  const r1 = newRun({ kind: 'array', name: 'B1' }, who);
+  const r2 = newRun({ kind: 'array', name: 'B2' }, who);
+  const results = new Map();
+  put(results, resultOps(results, r1.id, a.id, { status: 'pass' }, who));
+  let steps = removeStep(protocol.steps, a.id, results);
+  eq(steps.find((s) => s.id === a.id).removed, true, 'recorded step is kept as removed');
+  steps = removeStep(steps, b.id, results);
+  eq(steps.some((s) => s.id === b.id), false, 'unrecorded step is gone');
+  const p2 = { ...protocol, steps };
+  eq(runSteps(p2, r1, results).filter((s) => s.type === 'step').map((s) => [s.title, s.no]), [['a', '1'], ['c', '2']]);
+  eq(runSteps(p2, r2, results).filter((s) => s.type === 'step').map((s) => s.title), ['c']);
+  eq(stepCount(p2), 1);
+});
+
+test('moveStep swaps with the next shown step, skipping removed ones', () => {
+  const { protocol, sec, a, b, sec2, c } = proto();
+  const ids = (steps) => steps.map((s) => s.id);
+  eq(ids(moveStep(protocol.steps, b.id, -1)), ids([sec, b, a, sec2, c]));
+  eq(ids(moveStep(protocol.steps, sec.id, -1)), ids(protocol.steps), 'top stays');
+  const withRemoved = protocol.steps.map((s) => (s.id === sec2.id ? { ...s, removed: true } : s));
+  eq(ids(moveStep(withRemoved, c.id, -1)), ids([sec, a, c, sec2, b]));
+});
+
+test('nextRunName, protocolPut, deleteRunOps', () => {
+  const runs = new Map();
+  eq(nextRunName(runs, 'array'), 'B1');
+  for (const name of ['B1', 'B2', '시험']) {
+    const r = newRun({ kind: 'array', name }, who);
+    runs.set(r.id, r);
+  }
+  const p = newRun({ kind: 'phantom', name: 'P4' }, who);
+  runs.set(p.id, p);
+  eq([nextRunName(runs, 'array'), nextRunName(runs, 'phantom')], ['B3', 'P5']);
+  const op = protocolPut({ kind: 'array' }, [], who);
+  eq([op.coll, op.obj.id, op.obj.updatedBy], ['protocols', 'array', '미도']);
+  const results = new Map();
+  put(results, resultOps(results, p.id, 'x', { status: 'pass' }, who));
+  put(results, resultOps(results, 'other', 'x', { status: 'pass' }, who));
+  eq(deleteRunOps(p, results).map((o) => o.id), [p.id, resultId(p.id, 'x')]);
+});
+
+// ---- export
+test('csv: header, one row per board step and run step, quoting', () => {
+  const { boards, results, m1 } = mk();
+  const { protocol, a } = proto();
+  const run = newRun({ kind: 'array', name: 'B2' }, who);
   put(results, resultOps(results, m1.id, 'm1.pulls', { value: '9.98k, 10.02k', status: 'pass', note: 'R201 "ok"' }, who));
-  const csv = csvFor(boards, results);
+  put(results, resultOps(results, run.id, a.id, { status: 'pass' }, who));
+  const csv = csvFor({ boards, results, runs: new Map([[run.id, run]]), protocols: new Map([['array', protocol]]) });
   const lines = csv.trim().split('\r\n');
-  const steps = (k) => stagesFor(k).reduce((a, s) => a + s.steps.length, 0);
-  eq(lines.length, 1 + 2 * steps('main') + 2 * steps('hv') + 2 * steps('system'));
+  const steps = (k) => stagesFor(k).reduce((n, s) => n + s.steps.length, 0);
+  eq(lines.length, 1 + 2 * steps('main') + 2 * steps('hv') + 2 * steps('system') + 3);
   if (!csv.includes('"9.98k, 10.02k"')) throw new Error('comma value not quoted');
   if (!csv.includes('"R201 ""ok"""')) throw new Error('quote not doubled');
-  if (!csv.startsWith('﻿보드,')) throw new Error('missing BOM or header');
+  if (!csv.startsWith('﻿구분,')) throw new Error('missing BOM or header');
+  if (!lines.some((l) => l.startsWith('어레이 제작,B2,FPC 준비,1,a,,,,완료'))) throw new Error('run row');
 });
 
-test('backup round trip', () => {
-  const { boards, results } = mk();
-  const m1 = byName(boards, '메인 #1');
+test('backup round trip, and a 0.1 backup without runs still loads', () => {
+  const { boards, results, m1 } = mk();
+  const { protocol } = proto();
+  const run = newRun({ kind: 'phantom', name: 'P1' }, who);
   put(results, resultOps(results, m1.id, 'm0.ics', { status: 'pass' }, who));
-  const ops = parseBackup(backupFile(boards, results, '0.1.0'));
-  eq(ops.filter((o) => o.coll === 'boards').length, 6);
-  eq(ops.filter((o) => o.coll === 'results').length, 1);
+  const ops = parseBackup(backupFile({ boards, results, runs: new Map([[run.id, run]]), protocols: new Map([['array', protocol]]) }, '0.2.0'));
+  const count = (c) => ops.filter((o) => o.coll === c).length;
+  eq([count('boards'), count('results'), count('runs'), count('protocols')], [6, 1, 1, 1]);
+  const old = JSON.stringify({ app: 'us-bringup', version: '0.1.0', boards: [...boards.values()], results: [] });
+  eq(parseBackup(old).length, 6);
   let threw = false;
   try { parseBackup('{"app":"planner"}'); } catch { threw = true; }
   eq(threw, true, 'foreign backup rejected');

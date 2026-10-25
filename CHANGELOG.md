@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 — 2026-10-25
+
+- Renamed to **Wearable Ultrasound**. A home screen leads to three parts:
+  회로 보드 검증, 어레이 제작, 팬텀 제작.
+- 어레이 제작 · 팬텀 제작: write the protocol steps in the app (headings,
+  steps, an optional value field with a unit; move and delete). Each batch
+  (B1, B2…) or phantom (P1, P2…) gets a checklist with 완료 / 문제 / 건너뜀,
+  value and note. Editing a step shows everywhere; a deleted step that has a
+  record stays in that batch, marked.
+- Board checks: "+ 메인 보드" / "+ HV 보드" add a board in one tap;
+  "+ 연결 테스트" pairs a main and an HV board. The 2-set starter is gone.
+  Stages are numbered from 1 per board, buttons read 통과 / 문제 / 건너뜀.
+- Shorter, plainer wording across the app; Korean text no longer in the mono
+  font.
+- CSV and JSON backup cover batches and protocols too; 0.1 backups still load.
+- The offline cache fetches fresh copies when it updates.
+
 ## 0.1.1 — 2026-10-25
 
 - Own Firebase project (`ultrasound-ebd93`), apart from Planner's: separate

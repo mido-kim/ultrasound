@@ -1,14 +1,14 @@
-// The reference part of the guide: rules, board maps, connector / jumper / test point
-// tables, power order, symptoms and what changed from the perfboard guide.
-// Taken from us_control_v5.4_pcb_bringup_guide.html; keep the two in step.
+// The board reference: rules, board maps, connector / jumper / test point
+// tables, power order, symptoms and open questions. Taken from
+// us_control_v5.4_pcb_bringup_guide.html, with the wording shortened for the app.
 
 export const GUIDE_HTML = `
 <section id="g-rules"><div class="note danger">
-    <span class="tag">세 가지 규칙</span>
+    <span class="tag">꼭 지킬 것</span>
     <ol>
-      <li><b>전압은 직전 단계의 파형 · 전류 측정이 합격했을 때만 올립니다.</b> 1 MHz · 1채널 통과가 8 MHz · 16채널을 승인하지 않습니다.</li>
-      <li><b>접지된 오실로스코프 프로브를 MOSFET 소스(TP702 · TP704)에 물리지 않습니다.</b> MCU 보드 접지와 스코프 접지가 이미 공통이라 −HV가 단락됩니다. V<sub>GS</sub>는 정격 차동 프로브로만 봅니다.</li>
-      <li><b>메인 보드에는 ±HV 방전 저항이 없습니다.</b> C702 · C704(10 µF)는 HV 보드를 통해서만 방전됩니다. 전원을 끈 뒤 TP702 · TP704가 1 V 아래인지 확인하고 나서 J3 케이블을 뽑거나 보드를 만집니다.</li>
+      <li><b>전압은 앞 단계가 통과했을 때만 올려요.</b> 1 MHz · 1채널이 된다고 8 MHz · 16채널이 되는 건 아니에요.</li>
+      <li><b>접지된 스코프 프로브를 TP702 · TP704 (MOSFET 소스)에 물리지 마세요.</b> 스코프 접지와 MCU 접지가 이어져 있어서 −HV가 단락돼요. V<sub>GS</sub>는 차동 프로브로만.</li>
+      <li><b>메인 보드에는 ±HV 방전 저항이 없어요.</b> C702 · C704는 HV 보드를 통해서만 방전돼요. 끈 뒤 TP702 · TP704가 1 V 아래인지 보고 나서 J3 케이블을 뽑거나 보드를 만져요.</li>
     </ol>
   </div>
 </section>
@@ -17,7 +17,7 @@ export const GUIDE_HTML = `
     <span class="stage-num">보드 지도</span>
     <h2>테스트 포인트 · 커넥터 · 점퍼 위치</h2>
   </div>
-  <p>KiCad 좌표 그대로 축척을 맞춘 윗면 그림입니다. 주황 점이 테스트 포인트, 초록 상자가 저전압 커넥터 · 점퍼, 빨간 상자가 고전압이 지나는 커넥터입니다. 빨간 <b>1</b>은 1번 핀입니다.</p>
+  <p>축척을 맞춘 윗면 그림. 주황 점 = 테스트 포인트, 초록 = 저전압 커넥터 · 점퍼, 빨강 = 고전압 커넥터, 빨간 <b>1</b> = 1번 핀.</p>
   <div class="map">
     <figure>
       <svg viewBox="0 0 700 500" role="img" aria-label="메인 보드 v5.4 윗면 지도">
@@ -76,7 +76,7 @@ export const GUIDE_HTML = `
         <text class="c" x="636" y="376" text-anchor="middle">JP301–303</text>
       </svg>
     </figure>
-    <figcaption>메인 v5.4. J1은 오른쪽 끝이 1번(TX_ARM), J2는 오른쪽 끝이 1번(+5V). J3 · J4는 HV 보드 J2 · J1과 같은 자리라 두 보드를 겹치면 커넥터가 위아래로 맞습니다.</figcaption>
+    <figcaption>메인 v5.4. J1 · J2는 오른쪽 끝이 1번. J3 · J4는 HV 보드 J2 · J1과 같은 자리라 두 보드를 겹치면 맞아요.</figcaption>
 
     <figure>
       <svg viewBox="0 0 700 500" role="img" aria-label="HV 보드 v5.1 윗면 지도">
@@ -110,7 +110,7 @@ export const GUIDE_HTML = `
         <rect class="hvconn" x="340" y="424" width="81" height="26" rx="2"/><text class="h" x="380" y="417" text-anchor="middle">J903 벤치 입력</text><text class="s" x="380" y="465" text-anchor="middle">왼 +HV · 가운데 GND · 오 −HV</text>
       </svg>
     </figure>
-    <figcaption>HV v5.1. 모듈은 위에서부터 B · A · C · D 순서로 전압 사다리를 이룹니다. 각 모듈의 1번 핀은 왼쪽 끝 사각 패드입니다. J901 · J902는 항상 같은 위치로 둡니다.</figcaption>
+    <figcaption>HV v5.1. 모듈은 위에서부터 B · A · C · D 순서로 쌓여요. 1번 핀은 왼쪽 끝 사각 패드. J901 · J902는 항상 같은 위치로.</figcaption>
   </div>
 
   <div class="two">
@@ -188,16 +188,16 @@ export const GUIDE_HTML = `
     </div>
   </div>
   <div class="note warn">
-    <span class="tag">G1 미결</span>
-    <p>지금 PGOOD는 사람이 꽂는 SW201 점퍼입니다. 전압이 무너져도 스스로 내려가지 않으므로 자동 차단 회로(전압 윈도우 감시 · latched fault · HV soft-start)를 대신하지 못합니다. 위 순서를 지키는 것이 자동 차단을 대신하지 않으며, ±48 V 상시 운전은 아직 승인되지 않았습니다.</p>
+    <span class="tag">자동 차단 없음</span>
+    <p>지금 PGOOD는 손으로 꽂는 SW201 점퍼예요. 전압이 무너져도 저절로 꺼지지 않아요. ±48 V로 계속 켜 두는 건 아직 안 돼요.</p>
   </div>
 </section>
 
 
 <section id="g-trouble">
   <div class="stage-head">
-    <span class="stage-num">문제</span>
-    <h2>증상별 점검</h2>
+    <span class="stage-num">문제 생기면</span>
+    <h2>증상별로 볼 곳</h2>
   </div>
   <div class="tw"><table>
     <tr><th>증상</th><th>먼저 볼 곳</th></tr>
@@ -215,29 +215,18 @@ export const GUIDE_HTML = `
 </section>
 
 
-<section id="g-diff">
+<section id="g-open">
   <div class="stage-head">
-    <span class="stage-num">부록</span>
-    <h2>v5 가이드에서 바뀐 것 · 미결 항목</h2>
+    <span class="stage-num">남은 문제</span>
+    <h2>아직 안 정한 것</h2>
   </div>
-  <div class="tw"><table>
-    <tr><th>항목</th><th>v5 가이드 (퍼프보드)</th><th>이 문서 (PCB)</th></tr>
-    <tr><td>±48 V 스택</td><td>같은 보드의 ② 전원 구역</td><td>HV 보드 v5.1로 분리, J901 · J902 STACK / BENCH, J903 벤치 입력, D901 · D902 + JP901 · JP902, TP901–905</td></tr>
-    <tr><td>블록 4 게이트 관측</td><td>TC6320 미연결, MD1213 7 · 9번 핀 직접</td><td>TC6320이 이미 연결됨 → J3 단락 플러그로 ±HV = 0 V, C413 · C414 위 패드에서 관측</td></tr>
-    <tr><td>블록 5 BUS</td><td>COM에 1 kΩ 임시 부하</td><td>COM이 보드에서 BUS로 묶임, R702 부하는 블록 7부터</td></tr>
-    <tr><td>테스트 포인트</td><td>TP_LOGIC, TP_VGS_P/N 등 이름</td><td>TP401–TP707, TP901–TP905 번호</td></tr>
-    <tr><td>레일 LED</td><td>항상 연결</td><td>JP301–303 점퍼로 디버깅 때만</td></tr>
-    <tr><td>어레이 커넥터</td><td>2×16 (신호 16 + 리턴 16)</td><td>J1001 32P 0.5 mm FFC, 신호 16 + 공통 GND (홀수 / 짝수)</td></tr>
-    <tr><td>펌웨어 전 점검</td><td>없음</td><td>단계 3: VND042 없이 J2 벤치 전원으로 블록 2 · 3 · 6 선행</td></tr>
-  </table></div>
-  <h3>미결 항목</h3>
   <ul>
-    <li><b>G1</b> PGOOD · HV 자동 차단 · hold-up 회로 — 지금은 SW201 수동 점퍼</li>
-    <li><b>G2</b> 정격 차동 프로브 — 단계 5 이전에 확보</li>
-    <li><b>G3</b> 각 PZT의 허용 펄스 전압 (STEMINC 미공개, 문의 필요)과 Cp 변화</li>
-    <li><b>FFC 50 V</b> — B0524S 스택이 ±50 V를 넘을 수 있음</li>
-    <li><b>펌웨어</b> — 한 번도 컴파일되지 않음 (단계 4 전제)</li>
-    <li><b>VND042 5 V</b> — HV 보드 부하를 포함해 4.75–5.25 V인지</li>
+    <li><b>자동 차단</b> PGOOD · HV 자동 차단 회로 없음. 지금은 SW201 수동 점퍼</li>
+    <li><b>차동 프로브</b> 고전압 경로 전에 준비</li>
+    <li><b>소자 허용 전압</b> PZT 허용 펄스 전압 (STEMINC 미공개, 문의 필요)과 Cp 변화</li>
+    <li><b>FFC 50 V</b> HV 스택이 ±50 V를 넘을 수 있음</li>
+    <li><b>펌웨어</b> 아직 컴파일 안 됨 (펌웨어 올리기 전에)</li>
+    <li><b>VND042 5 V</b> HV 보드를 붙여도 4.75–5.25 V인지</li>
   </ul>
 </section>
 
