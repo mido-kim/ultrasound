@@ -306,7 +306,8 @@ test('moving site files: pictures fit the limit, other files become Drive folder
     }
     for (const { href, size } of d.files) {
       const r = await fetch(`../${href}`, { method: 'HEAD', cache: 'no-store' });
-      const len = Number(r.headers.get('content-length'));
+      // GitHub Pages compresses text files; then the length is the compressed one.
+      const len = r.headers.get('content-encoding') ? 0 : Number(r.headers.get('content-length'));
       if (!r.ok) bad.push(`${href}: ${r.status}`);
       else if (len && len !== size) bad.push(`${href}: ${len} bytes, listed ${size}`);
     }

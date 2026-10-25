@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-10-26
+
+- Tests: the file-size check skips files the server sends compressed
+  (GitHub Pages gzips .md and .svg), which showed a false failure on the live site.
+
 ## 0.5.0 — 2026-10-26
 
 - Files live in **Google Drive**; the app is the map. 미팅 자료 and 어레이 설계
