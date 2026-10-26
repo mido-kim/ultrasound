@@ -56,6 +56,10 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   in Firestore, cut into chunks (`js/files.js`; `uploadFile` / `readFile` /
   `deleteFile` in `cloud.js`). `config/home` picks the home-screen picture.
   Free-plan Firestore holds 1 GiB in all, so never store decks or data there.
+- `js/notes.js`: notes on meetings and design versions (`notes` collection,
+  `{id, target: '<coll>/<id>', text, by, byUid, at}`), one record per note so
+  two writers never overwrite each other. `noteDrafts` in main.js keeps a
+  half-typed note across redraws; deleting an item deletes its notes.
 - `js/places.js`: 자료 지도 groups and the starting list ("기본 목록 넣기").
 - `js/legacy-import.js` + `js/designs.js` + `js/meetings.js` + `designs/` +
   `meetings/`: what the site used to serve, moved once into records from

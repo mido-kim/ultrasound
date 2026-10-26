@@ -9,6 +9,7 @@ import { MAX_PICTURE, baseName, fileSize, isPicture } from './files.js';
 import { GUIDE_HTML } from './guide.js';
 import { describeSpec, judge } from './judge.js';
 import { pending as legacyPending, runImport } from './legacy-import.js';
+import { NOTE_MAX, deleteNotesOps, newNote, notesFor, targetOf } from './notes.js';
 import {
   PROTO_KINDS, deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolOf, protocolPut,
   removeStep, runProgress, runSteps, stepCount, stepHasResults,
@@ -670,6 +671,51 @@ function itemBody(item, coll) {
     ${contents ? `<details class="contents"><summary>Drive 폴더 안 파일 ${lines.length}개</summary><ul class="files">${contents}</ul></details>` : ''}`;
 }
 
+// ---------------------------------------------------------------- notes on an item
+
+const noteDrafts = new Map(); // item target → text typed in its note box, kept across redraws
+
+function notesBlock(coll, item) {
+  const target = targetOf(coll, item.id);
+  const list = notesFor(state.notes, target);
+  const boxId = `nt-${coll}-${item.id}`;
+  return `
+    <div class="notes">
+      <h3 class="notes-title">메모${list.length ? ` <span class="muted">${list.length}</span>` : ''}</h3>
+      ${list.map((n) => `
+      <div class="note-item">
+        <p>${esc(n.text)}</p>
+        <div class="note-meta"><span>${esc(n.by || '')} · ${when(n.at)}</span><button type="button" class="link" data-act="del-note" data-id="${esc(n.id)}">지우기</button></div>
+      </div>`).join('')}
+      <div class="note-add">
+        <textarea id="${esc(boxId)}" data-note-for="${esc(target)}" rows="2" maxlength="${NOTE_MAX}" placeholder="메모 남기기" aria-label="${esc(item.title || '')} 메모">${esc(noteDrafts.get(target) || '')}</textarea>
+        <button type="button" data-act="add-note" data-target="${esc(target)}" data-box="${esc(boxId)}">추가</button>
+      </div>
+    </div>`;
+}
+
+function addNote(target, boxId) {
+  const box = document.getElementById(boxId);
+  const note = newNote(target, box ? box.value : noteDrafts.get(target), who());
+  if (!note) {
+    box?.focus();
+    return toast('메모를 적어 주세요');
+  }
+  // Clear the draft first: the store redraws as soon as the note is in.
+  noteDrafts.delete(target);
+  if (box) {
+    box.value = '';
+    box.blur();
+  }
+  commit([{ op: 'put', coll: 'notes', obj: note }]);
+}
+
+function deleteNote(id) {
+  const n = state.notes.get(id);
+  if (!n || !confirm(`이 메모를 지울까요?\n${n.text.slice(0, 80)}`)) return;
+  commit([{ op: 'remove', coll: 'notes', id }]);
+}
+
 function needsLogin(what) {
   return `<div class="empty"><h2>로그인하면 보여요</h2><p>${what} Firebase에 있어서, 이 기기에만 쓰는 모드에서는 안 보여요.</p>
     ${firebaseConfig ? '<button type="button" data-act="use-cloud">로그인해서 같이 쓰기</button>' : ''}</div>`;
@@ -702,6 +748,7 @@ function designsPage() {
     <div class="row"><h2>${esc(d.title)}</h2>${d.date ? `<span class="chip">${esc(d.date)}</span>` : ''}<span class="spacer"></span><button type="button" data-act="edit-design" data-id="${esc(d.id)}">편집</button></div>
     ${(d.points || []).length ? `<ul class="small">${d.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
     ${itemBody(d, 'designs')}
+    ${notesBlock('designs', d)}
   </section>`).join('');
   const nav = list.length > 1 ? `<nav class="guide-nav">${list.map((d) => `<a href="#/p/array/designs" data-scroll="design-${esc(d.id)}">${esc(d.title)}</a>`).join('')}</nav>` : '';
   return `${head}${legacyHint()}${nav}${versions || '<div class="empty"><h2>아직 설계 버전이 없어요</h2><p>+ 버전 추가로 그림과 Drive 링크를 넣어요.</p></div>'}`;
@@ -722,6 +769,7 @@ function meetingsPage() {
     <div class="row"><h2>${esc(m.title)}</h2>${m.date ? `<span class="chip">${esc(m.date)}</span>` : ''}<span class="spacer"></span><button type="button" data-act="edit-meeting" data-id="${esc(m.id)}">편집</button></div>
     ${m.sub ? `<p class="muted small">${esc(m.sub)}</p>` : ''}
     ${itemBody(m, 'meetings')}
+    ${notesBlock('meetings', m)}
   </section>`).join('');
   return `${head}${legacyHint()}${items || '<div class="empty"><h2>아직 미팅 자료가 없어요</h2><p>+ 미팅 추가로 그림과 링크를 넣어요.</p></div>'}`;
 }
@@ -965,7 +1013,7 @@ function wireEvents() {
   // lost). Keep focus in the field; the click handlers save what was typed.
   app.addEventListener('mousedown', (e) => {
     const field = document.activeElement;
-    if (e.target.closest('button') && field?.matches?.('input[data-field], input[data-pe]')) e.preventDefault();
+    if (e.target.closest('button') && field?.matches?.('input[data-field], input[data-pe], textarea[data-note-for]')) e.preventDefault();
   });
   app.addEventListener('click', onClick);
   app.addEventListener('input', (e) => {
@@ -974,6 +1022,10 @@ function wireEvents() {
       editField(t.dataset.id, t.dataset.pe, t.value);
       clearTimeout(protoTimer);
       protoTimer = setTimeout(saveProto, SAVE_MS);
+      return;
+    }
+    if (t.dataset?.noteFor !== undefined) {
+      noteDrafts.set(t.dataset.noteFor, t.value);
       return;
     }
     if (!t.dataset?.field) return;
@@ -1065,6 +1117,8 @@ function onClick(e) {
     case 'seed-places': return seedPlaces();
     case 'copy-path': return copy(el.dataset.path, '경로를 복사했어요');
     case 'set-home': return setHome(el.dataset.coll, el.dataset.id, el.dataset.file);
+    case 'add-note': return addNote(el.dataset.target, el.dataset.box);
+    case 'del-note': return deleteNote(el.dataset.id);
     case 'run-import': return startImport();
     case 'copy-uid': return copy(store.uid, 'UID를 복사했어요');
     case 'copy-rules': return copy($('#rules-text').textContent, '규칙을 복사했어요');
@@ -1319,7 +1373,7 @@ function itemDialog(coll, item) {
   dlg.addEventListener('cancel', (e) => busy && e.preventDefault()); // Esc while uploading
   dlg.querySelector('[data-del]')?.addEventListener('click', () => {
     if (!confirm(`지울까요? ${item.title} · 그림 ${pictureIdsOf(item).length}개. Drive 파일은 그대로 남아요.`)) return;
-    commit([{ op: 'remove', coll, id: item.id }]);
+    commit([{ op: 'remove', coll, id: item.id }, ...deleteNotesOps(state.notes, targetOf(coll, item.id))]);
     forgetFiles(pictureIdsOf(item));
     dlg.close();
   });

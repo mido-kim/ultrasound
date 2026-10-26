@@ -8,6 +8,7 @@
 //   bringup/{PROJECT}/meetings/{id}       meeting slides (pictures, files, Slides link)
 //   bringup/{PROJECT}/designs/{id}        array design versions
 //   bringup/{PROJECT}/places/{id}         자료 지도: where everything lives
+//   bringup/{PROJECT}/notes/{id}          notes on meetings and design versions (notes.js)
 //   bringup/{PROJECT}/config/home         the picture on the home screen
 //   bringup/{PROJECT}/files/{id}          preview picture metadata; the bytes in files/{id}/chunks (files.js)
 // Big files themselves live in Google Drive; records only hold links to them.

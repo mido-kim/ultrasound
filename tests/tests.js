@@ -3,6 +3,7 @@ import { ARRAY_DESIGNS } from '../js/designs.js';
 import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
 import { CHUNK, MAX_PICTURE, baseName, chunkCount, chunkId, chunkRanges, fileSize, isPicture, typeOf } from '../js/files.js';
 import { contentsOf as legacyContents, pending as legacyPending } from '../js/legacy-import.js';
+import { NOTE_MAX, deleteNotesOps, newNote, notesFor, targetOf } from '../js/notes.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
 import {
   deleteRunOps, moveStep, newProtoStep, newRun, nextRunName, protocolPut, removeStep, runProgress, runSteps, stepCount,
@@ -291,6 +292,21 @@ test('moving site files: pictures fit the limit, other files become Drive folder
   eq(lines[0], 'array_v2-3_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber');
   eq(legacyContents(MEETINGS[0]), '초음파 260911 미팅 (260903~).pptx — 슬라이드 원본 (PPTX)');
   if (MAX_PICTURE > 50 * CHUNK) throw new Error('picture limit too big for chunks');
+});
+
+// ---- notes on items
+test('notes: empty notes are not saved, threads stay apart and in order', () => {
+  const me = { name: '미도', uid: 'u1' };
+  eq([newNote('meetings/a', '   ', me), newNote('meetings/a', '', me), newNote('meetings/a', undefined, me)], [null, null, null]);
+  const a1 = { ...newNote('meetings/a', '  첫 메모 \n', me), at: '2026-10-27T01:00:00Z' };
+  const a2 = { ...newNote('meetings/a', '두 번째', { name: '정인', uid: 'u2' }), at: '2026-10-27T02:00:00Z' };
+  const b1 = { ...newNote('designs/v2-3', '설계 메모', me), at: '2026-10-27T00:30:00Z' };
+  eq([a1.text, a1.by, a1.byUid, a1.target], ['첫 메모', '미도', 'u1', 'meetings/a'], 'trimmed, who and where kept');
+  const notes = new Map([a2, b1, a1].map((n) => [n.id, n]));
+  eq(notesFor(notes, 'meetings/a').map((n) => n.text), ['첫 메모', '두 번째']);
+  eq(notesFor(notes, targetOf('designs', 'v2-3')).length, 1);
+  eq(deleteNotesOps(notes, 'meetings/a').map((o) => [o.op, o.coll, o.id]), [['remove', 'notes', a1.id], ['remove', 'notes', a2.id]]);
+  eq(newNote('x/y', 'a'.repeat(NOTE_MAX + 50), me).text.length, NOTE_MAX, 'capped');
 });
 
 // ---- design files: every picture and file listed exists, at the listed size

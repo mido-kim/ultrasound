@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — 2026-10-26
+
+- **메모**: every meeting and design version has a notes thread at the bottom.
+  Both people can add notes; each shows who wrote it and when, and can be
+  deleted. Each note is its own record (`notes`), so two people writing at
+  once never overwrite each other. Deleting a meeting or version deletes its notes.
+- A half-typed note survives redraws (another person's change, going
+  offline), and pressing 추가 right after typing is not lost (as in 0.5.2).
+
 ## 0.5.3 — 2026-10-26
 
 - Fix: an account that signed in but isn't in the Firestore rules yet stayed on

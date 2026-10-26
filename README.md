@@ -18,6 +18,7 @@
   - 단계를 고치면 모든 배치에 바로 보여요. 기록이 있는 단계를 지우면 그 배치에는 "프로토콜에서 뺀 단계"로 남아요.
 - **파일은 Google Drive에, 앱은 지도.** 큰 파일 (슬라이드, zip, KiCad, 데이터)은 Drive에 두고, 앱에는 설명, 링크, 미리보기 그림만 둬요.
 - **어레이 설계** (어레이 제작 → 설계 파일), **미팅 자료**: 앱에서 추가 · 편집. 항목마다 Drive 폴더 링크, 다른 링크 (Google Slides, Notion …), 폴더 안 파일 목록, 미리보기 그림 (5 MB까지, Firebase에 저장). 로그인한 두 계정만 볼 수 있어요.
+- **메모.** 미팅 · 설계 버전마다 메모를 남겨요. 누가 · 언제 썼는지 함께 보여요.
 - **자료 지도.** 자료가 어디에 있는지: Drive, Notion, PC 폴더, GitHub, Firebase. 주소는 누르면 열리고 PC 경로는 복사돼요.
 - 홈 화면 맨 위 그림은 아무 미리보기 그림에서 "홈에 표시"로 골라요.
 - **설정.** 이름, 테마, 계정 · UID, 결과표 CSV, JSON 백업 · 복원.
@@ -65,6 +66,7 @@ http://localhost:5174 를 열어요. "로그인 없이 이 기기에서만 쓰�
 | `js/backup.js` | 결과표 CSV, JSON 백업 |
 | `js/guide.js` | 보드 지도와 표 |
 | `js/files.js` | 미리보기 그림을 Firestore에 조각으로 저장하는 규칙 |
+| `js/notes.js` | 미팅 · 설계 버전의 메모 |
 | `js/places.js` | 자료 지도의 묶음과 기본 목록 |
 | `js/legacy-import.js`, `js/designs.js`, `js/meetings.js`, `designs/`, `meetings/` | 예전에 사이트에 있던 자료 (한 번 옮기고 나면 지워요) |
 | `js/dev-store.js` | 개발용: `http://localhost:5174/?dev`로 Firebase 없이 화면 시험 |
