@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3 — 2026-10-26
+
+- Fix: an account that signed in but isn't in the Firestore rules yet stayed on
+  "불러오는 중…" forever. Only 4 of the 9 collections started empty, so the home
+  screen broke before any data came. Now it shows "이 계정은 아직 공유 기록을
+  볼 수 없어요", and 설정 shows the UID to put in the rules.
+
 ## 0.5.2 — 2026-10-26
 
 - Fix: typing a value and pressing 통과 / 문제 / 건너뜀 right away (within about

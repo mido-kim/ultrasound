@@ -25,7 +25,9 @@ import { VERSION } from './version.js';
 
 const app = $('#app');
 let settings = loadSettings();
-const state = { boards: new Map(), results: new Map(), runs: new Map(), protocols: new Map(), pending: false, error: null };
+// Every collection starts empty: an account outside the rules gets errors and
+// never a first snapshot, and the pages still have to draw (with the banner).
+const state = { ...Object.fromEntries(COLLS.map((c) => [c, new Map()])), pending: false, error: null };
 let store = null;
 let cloud = null;
 let unsubscribe = null;
