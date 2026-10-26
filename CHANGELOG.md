@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2 — 2026-10-26
+
+- Fix: typing a value and pressing 통과 / 문제 / 건너뜀 right away (within about
+  a second) lost the click. The value was saved but the status wasn't. The same
+  happened in 단계 편집: "+ 단계" right after typing did nothing, and the next
+  typing went nowhere. The field now keeps focus until the button's click lands.
+
 ## 0.5.1 — 2026-10-26
 
 - Tests: the file-size check skips files the server sends compressed

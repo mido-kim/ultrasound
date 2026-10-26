@@ -41,7 +41,10 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   hash routes `#/` home, `#/boards`, `#/b/<id>[/<n>]`, `#/guide`,
   `#/p/<kind>`, `#/p/<kind>/edit`, `#/r/<id>`, `#/settings`. Render is the
   whole page as a string (keeps focus, caret and the row in view). Typing goes
-  into `drafts` and is saved after `SAVE_MS` or on blur. The step editor works
+  into `drafts` and is saved after `SAVE_MS` or on blur. A press on a button
+  while a field has focus is kept from blurring it (`mousedown` preventDefault
+  in `wireEvents`): the save and re-render on blur used to replace the button
+  before its click landed. The step editor works
   on a copy (`protoEdit`) saved as it changes. `boot()` is called at the end
   of the file so every const exists before the first render.
 - **Files policy (user's decision, no paid services):** big files live in the

@@ -958,6 +958,13 @@ async function startImport() {
 const splitInput = (id) => [id.startsWith('v-') ? 'value' : 'note', id.slice(2)];
 
 function wireEvents() {
+  // Pressing a button while typing would blur the field first, and the save and
+  // re-render on blur replaced the button before the click landed (the click was
+  // lost). Keep focus in the field; the click handlers save what was typed.
+  app.addEventListener('mousedown', (e) => {
+    const field = document.activeElement;
+    if (e.target.closest('button') && field?.matches?.('input[data-field], input[data-pe]')) e.preventDefault();
+  });
   app.addEventListener('click', onClick);
   app.addEventListener('input', (e) => {
     const t = e.target;
@@ -1032,7 +1039,11 @@ function onClick(e) {
     return;
   }
   const seg = e.target.closest('button[data-s]');
-  if (seg) return setStatus(seg.dataset.step, seg.dataset.s);
+  if (seg) {
+    setStatus(seg.dataset.step, seg.dataset.s);
+    document.activeElement?.blur?.(); // the row is done, as before: close the keyboard
+    return;
+  }
   const el = e.target.closest('[data-act]');
   const act = el?.dataset.act;
   if (!act) return;
