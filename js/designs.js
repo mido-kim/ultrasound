@@ -15,16 +15,29 @@ const v3Images = (v, layout) => [
   { src: `${D}/v${v}/v${v}_fpc2.svg`, caption: 'FPC 2 · Gerber 렌더' },
   { src: `${D}/v${v}/v${v}_layout.png`, caption: layout },
 ];
-const v3Contents = (v, readmes) => [
+const v3Contents = (v, readmes, generator = 'array_v3_generator.zip') => [
   `array_v${v}_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber`,
   `array_v${v}_FPC2_ground_JLC.zip — FPC 2 접지 · JLC 주문용 Gerber`,
   `array_v${v}_KiCad.zip — KiCad 9 보드 (FPC 1 · 2)`,
   ...readmes,
-  'array_v3_generator.zip — v3 생성 스크립트 (Python, KiCad 9)',
+  `${generator} — v3 생성 스크립트 (Python, KiCad 9)`,
 ].join('\n');
 const V3_README = 'README_v3-1_v3-2.md — 주문 설정 · 소자 배치 · 조립 메모 (3-1 · 3-2)';
 
 export const ARRAY_DESIGNS = [
+  {
+    id: 'v3-4',
+    title: '버전 3-4',
+    date: '2026-10-28',
+    points: [
+      '3-3을 좌우 대칭으로: 왼쪽 두 열은 왼쪽, 오른쪽 두 열은 오른쪽으로 선이 나감',
+      '왼쪽 두 열은 먼 줄부터 번호 (1열: 가까운 줄 EL3 → 먼 줄 EL0, 2열: EL7 → EL4)',
+      'ACF 접합 줄은 3-3처럼 소자에서 30 mm',
+    ],
+    images: v3Images('3-4', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: v3Contents('3-4', ['README_v3-4.md — 3-3과 다른 점 · 바뀐 소자 배치', 'README_v3-3.md — 3-3 (ACF 30 mm)', V3_README], 'array_v3_generator_v3-4.zip'),
+  },
   {
     id: 'v3-3',
     title: '버전 3-3',

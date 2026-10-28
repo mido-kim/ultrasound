@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — 2026-10-28
+
+- 어레이 설계: version 3-4 (v3-3 with the traces left and right as mirror
+  images; the two left columns are numbered from the far row) joins the
+  설정 → 자료 옮기기 list. 목차's starting list has v3-4 too.
+
 ## 0.7.0 — 2026-10-28
 
 - **홈 그림 여러 장**: 그림 편집 → + 그림 (5 MB까지), ← → 순서, 편집에서
