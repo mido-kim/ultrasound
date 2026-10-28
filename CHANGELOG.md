@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 — 2026-10-28
+
+- 어레이 설계: versions 3-1, 3-2 and 3-3 (4 × 4 elements) join the 설정 →
+  자료 옮기기 list, with their preview pictures and Gerber renders. Their
+  files (JLC zips, KiCad, README, generator) are in Drive, listed in each
+  version's "Drive 폴더 안 파일".
+
 ## 0.6.0 — 2026-10-26
 
 - **메모**: every meeting and design version has a notes thread at the bottom.

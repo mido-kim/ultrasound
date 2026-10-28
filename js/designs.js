@@ -2,11 +2,67 @@
 // kept in designs/array/<version>/; the originals stay in the project folder
 // (US_array_v1.zip and array_v1.* at its root, array_v2_fpc/ for v2-x).
 // Newest first. Sizes are in bytes.
+// v3-x came after the move to Drive: only their pictures are here, to be moved
+// into records the same way; `contents` lists their Drive folder
+// (../drive_upload/Wearable Ultrasound/어레이 설계/v3-x/).
 
 const D = 'designs/array';
 const GENERATOR = { href: `${D}/array_v2_generator.zip`, label: 'v2 생성 스크립트 (Python, KiCad 9)', size: 13444 };
 
+const v3Images = (v, layout) => [
+  { src: `${D}/v${v}/v${v}_stack.png`, caption: '겹친 모습 · FPC 1 쪽에서, 리본 위' },
+  { src: `${D}/v${v}/v${v}_fpc1_array_end.svg`, caption: 'FPC 1 어레이 쪽 · Gerber 렌더' },
+  { src: `${D}/v${v}/v${v}_fpc2.svg`, caption: 'FPC 2 · Gerber 렌더' },
+  { src: `${D}/v${v}/v${v}_layout.png`, caption: layout },
+];
+const v3Contents = (v, readmes) => [
+  `array_v${v}_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber`,
+  `array_v${v}_FPC2_ground_JLC.zip — FPC 2 접지 · JLC 주문용 Gerber`,
+  `array_v${v}_KiCad.zip — KiCad 9 보드 (FPC 1 · 2)`,
+  ...readmes,
+  'array_v3_generator.zip — v3 생성 스크립트 (Python, KiCad 9)',
+].join('\n');
+const V3_README = 'README_v3-1_v3-2.md — 주문 설정 · 소자 배치 · 조립 메모 (3-1 · 3-2)';
+
 export const ARRAY_DESIGNS = [
+  {
+    id: 'v3-3',
+    title: '버전 3-3',
+    date: '2026-10-28',
+    points: [
+      '3-1과 같고, ACF 접합 줄만 소자에서 30 mm (3-1은 11 mm)',
+      'FPC 2 길이 54 mm (3-1은 35 mm), FPC 1 335 mm',
+    ],
+    images: v3Images('3-3', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: v3Contents('3-3', ['README_v3-3.md — 3-1과 다른 점 · 크기', V3_README]),
+  },
+  {
+    id: 'v3-2',
+    title: '버전 3-2',
+    date: '2026-10-28',
+    points: [
+      '3-1과 같은 배치, 소자 패드 1.2 mm (섬 1.84 mm)',
+      'ACF 아래 다리를 물결로 (±0.6 mm) · 외곽을 선 따라 자름',
+      'ACF 접합 줄이 소자에서 18.7 mm',
+    ],
+    images: v3Images('3-2', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: v3Contents('3-2', [V3_README]),
+  },
+  {
+    id: 'v3-1',
+    title: '버전 3-1',
+    date: '2026-10-28',
+    points: [
+      '4 × 4 소자, 4 mm 피치 · 열 단위 번호 (첫 열 EL0–EL3)',
+      '2~4번째 줄은 옆 틈으로 연결 · 틈마다 0.15 mm 선 3개',
+      '직선 배선, 사각 외곽 · 정렬 구멍 4개 · ACF 접합 줄이 소자에서 11 mm',
+    ],
+    images: v3Images('3-1', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: v3Contents('3-1', [V3_README]),
+  },
   {
     id: 'v2-3',
     title: '버전 2-3',

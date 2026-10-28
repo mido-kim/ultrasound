@@ -24,6 +24,7 @@ const fileName = (href) => href.split('/').pop();
 
 // "name — label" lines: what goes in the item's Drive folder.
 export function contentsOf(entry) {
+  if (entry.contents) return entry.contents;
   if (entry.pptx) return `${entry.pptx.name} — 슬라이드 원본 (PPTX)`;
   return (entry.files || []).map((f) => `${fileName(f.href)} — ${f.label}`).join('\n');
 }

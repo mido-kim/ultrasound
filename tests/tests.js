@@ -291,6 +291,8 @@ test('moving site files: pictures fit the limit, other files become Drive folder
   eq(lines.length, v23.files.length);
   eq(lines[0], 'array_v2-3_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber');
   eq(legacyContents(MEETINGS[0]), '초음파 260911 미팅 (260903~).pptx — 슬라이드 원본 (PPTX)');
+  const v31 = ARRAY_DESIGNS.find((d) => d.id === 'v3-1');
+  eq([v31.files.length, legacyContents(v31).split('\n')[0]], [0, 'array_v3-1_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber'], 'v3: files live in Drive, listed as lines');
   if (MAX_PICTURE > 50 * CHUNK) throw new Error('picture limit too big for chunks');
 });
 
