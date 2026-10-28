@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 — 2026-10-28
+
+- 어레이 설계: version 2-5 (v2-4 with the traces bending right under the
+  ACF row and then running straight down, and 1.5 mm round element pads)
+  joins the 설정 → 자료 옮기기 list and 목차's starting list.
+
 ## 0.7.2 — 2026-10-28
 
 - 어레이 설계: version 2-4 (v2-1 with the ACF row 50 mm from the

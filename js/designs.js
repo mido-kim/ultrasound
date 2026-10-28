@@ -77,6 +77,26 @@ export const ARRAY_DESIGNS = [
     contents: v3Contents('3-1', [V3_README]),
   },
   {
+    id: 'v2-5',
+    title: '버전 2-5',
+    date: '2026-10-28',
+    points: [
+      '2-4 (ACF 50 mm)에서 선이 ACF 바로 아래서 45°로 꺾이고, 어레이까지 수직으로',
+      '소자 패드를 1.5 mm 원형으로 (2-4는 2.6 mm 사각)',
+    ],
+    images: v3Images('2-5', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: [
+      'array_v2-5_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber',
+      'array_v2-5_FPC2_ground_JLC.zip — FPC 2 접지 · JLC 주문용 Gerber',
+      'array_v2-5_KiCad.zip — KiCad 9 보드 (FPC 1 · 2)',
+      'README_v2-5.md — 2-4와 다른 점',
+      'README_v2-4.md — 2-4 (ACF 50 mm)',
+      'README_v2-1_v2-2.md — 주문 설정 · 조립 메모 (2-1 · 2-2)',
+      'array_v2_generator_v2-5.zip — v2 생성 스크립트 (Python, KiCad 9)',
+    ].join('\n'),
+  },
+  {
     id: 'v2-4',
     title: '버전 2-4',
     date: '2026-10-28',
