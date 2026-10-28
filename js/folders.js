@@ -31,7 +31,7 @@ export const SEED_FOLDERS = [
   { id: 'meetings', parent: ROOT, name: '미팅 자료', memo: '미팅마다 폴더 (날짜 제목). 슬라이드 원본과 그림.' },
   { id: 'meetings-2026-09-11', parent: 'meetings', name: '2026-09-11 진행 사항', memo: '' },
   { id: 'array', parent: ROOT, name: '어레이 설계', memo: '버전마다 폴더. JLC 주문 파일, KiCad, 도면, 미리보기.' },
-  ...['v1', 'v2-1', 'v2-2', 'v2-3', 'v3-1', 'v3-2', 'v3-3', 'v3-4'].map((v) => ({ id: `array-${v}`, parent: 'array', name: v, memo: '' })),
+  ...['v1', 'v2-1', 'v2-2', 'v2-3', 'v2-4', 'v3-1', 'v3-2', 'v3-3', 'v3-4'].map((v) => ({ id: `array-${v}`, parent: 'array', name: v, memo: '' })),
   { id: 'boards', parent: ROOT, name: '회로 보드', memo: '메인 · HV 보드 파일' },
   { id: 'data', parent: ROOT, name: '측정 데이터', memo: '측정 날짜별 폴더 (예: 2026-08-27). 스코프 csv · 사진.' },
   { id: 'papers', parent: ROOT, name: '논문 · 참고 자료', memo: '' },

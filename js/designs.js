@@ -77,6 +77,25 @@ export const ARRAY_DESIGNS = [
     contents: v3Contents('3-1', [V3_README]),
   },
   {
+    id: 'v2-4',
+    title: '버전 2-4',
+    date: '2026-10-28',
+    points: [
+      '2-1과 같고, ACF 접합 줄만 소자에서 50 mm (2-1은 4 mm)',
+      'FPC 2 길이 66 mm (2-1은 20 mm), FPC 1 347 mm',
+    ],
+    images: v3Images('2-4', '꼬리 · 전체 길이 · 두 FPC 구리면'),
+    files: [],
+    contents: [
+      'array_v2-4_FPC1_signal_JLC.zip — FPC 1 신호 · JLC 주문용 Gerber',
+      'array_v2-4_FPC2_ground_JLC.zip — FPC 2 접지 · JLC 주문용 Gerber',
+      'array_v2-4_KiCad.zip — KiCad 9 보드 (FPC 1 · 2)',
+      'README_v2-4.md — 2-1과 다른 점 · 크기',
+      'README_v2-1_v2-2.md — 주문 설정 · 조립 메모 (2-1 · 2-2)',
+      'array_v2_generator_v2-4.zip — v2 생성 스크립트 (Python, KiCad 9)',
+    ].join('\n'),
+  },
+  {
     id: 'v2-3',
     title: '버전 2-3',
     date: '2026-10-25',

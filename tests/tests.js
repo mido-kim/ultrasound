@@ -333,12 +333,12 @@ test('folders: seed tree, children in order, moves never go inside themselves, d
   const f = new Map(SEED_FOLDERS.map((x) => [x.id, x]));
   eq(new Set(SEED_FOLDERS.map((x) => x.id)).size, SEED_FOLDERS.length, 'ids unique');
   eq(childrenOf(f, ROOT).map((x) => x.name), ['미팅 자료', '어레이 설계', '회로 보드', '측정 데이터', '논문 · 참고 자료']);
-  eq(childrenOf(f, 'array').map((x) => x.name), ['v1', 'v2-1', 'v2-2', 'v2-3', 'v3-1', 'v3-2', 'v3-3', 'v3-4']);
+  eq(childrenOf(f, 'array').map((x) => x.name), ['v1', 'v2-1', 'v2-2', 'v2-3', 'v2-4', 'v3-1', 'v3-2', 'v3-3', 'v3-4']);
   f.set('lost', { id: 'lost', parent: 'gone', name: '고아', order: 999 });
   eq(childrenOf(f, ROOT).pop().id, 'lost', 'a folder whose parent is gone shows at the top');
   eq(placesFor(f, 'array').some((p) => p.id === 'array' || p.id === 'array-v1'), false);
   eq(placesFor(f, 'array').find((p) => p.id === 'meetings-2026-09-11').depth, 2);
-  eq(deleteFolderOps(f, 'array').length, 9);
+  eq(deleteFolderOps(f, 'array').length, 10);
   eq(descendantsOf(f, 'meetings').map((x) => x.id), ['meetings-2026-09-11']);
   eq(nextOrder(f, 'array') > Math.max(...childrenOf(f, 'array').map((x) => x.order)), true);
 });

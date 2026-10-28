@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 — 2026-10-28
+
+- 어레이 설계: version 2-4 (v2-1 with the ACF row 50 mm from the
+  elements) joins the 설정 → 자료 옮기기 list. 목차's starting list has
+  v2-4 too.
+
 ## 0.7.1 — 2026-10-28
 
 - 어레이 설계: version 3-4 (v3-3 with the traces left and right as mirror
