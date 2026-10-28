@@ -2,6 +2,11 @@ import { backupFile, csvFor, parseBackup } from '../js/backup.js';
 import { ARRAY_DESIGNS } from '../js/designs.js';
 import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
 import { CHUNK, MAX_PICTURE, baseName, chunkCount, chunkId, chunkRanges, fileSize, isPicture, typeOf } from '../js/files.js';
+import {
+  ROOT, SEED_FOLDERS, childrenOf, deleteFolderOps, descendantsOf, memoHtml, memoOffset, memoPoint, memoText, nextOrder,
+  paintRuns, placesFor, runsOf, sanitizeMemo,
+} from '../js/folders.js';
+import { homeImages, homeLink, homeRecord, moved, withImage } from '../js/home.js';
 import { contentsOf as legacyContents, pending as legacyPending } from '../js/legacy-import.js';
 import { NOTE_MAX, deleteNotesOps, newNote, notesFor, targetOf } from '../js/notes.js';
 import { describeSpec, judge, parseValues, si } from '../js/judge.js';
@@ -309,6 +314,66 @@ test('notes: empty notes are not saved, threads stay apart and in order', () => 
   eq(notesFor(notes, targetOf('designs', 'v2-3')).length, 1);
   eq(deleteNotesOps(notes, 'meetings/a').map((o) => [o.op, o.coll, o.id]), [['remove', 'notes', a1.id], ['remove', 'notes', a2.id]]);
   eq(newNote('x/y', 'a'.repeat(NOTE_MAX + 50), me).text.length, NOTE_MAX, 'capped');
+});
+
+// ---- home: pictures, 목차
+test('home pictures: a 0.6 record reads as one wide picture; the first stays readable by old copies', () => {
+  eq(homeImages(undefined), []);
+  eq(homeImages({ id: 'home', image: 'f1', caption: '진행 사항', link: '#/meetings' }), [{ file: 'f1', caption: '진행 사항', link: '#/meetings', wide: true }]);
+  const list = withImage(withImage([], { file: 'a', caption: 'A', link: '', wide: true }), { file: 'b', caption: 'B', link: '', wide: false });
+  eq(withImage(list, { file: 'a', caption: 'again' }).length, 2, 'no doubles');
+  const rec = homeRecord(moved(list, 1, -1), '미도');
+  eq([rec.images.map((x) => x.file), rec.image, rec.caption], [['b', 'a'], 'b', 'B']);
+  eq(moved(list, 0, -1), list, 'cannot move past the start');
+  eq(homeRecord([], '미도').image, '');
+  eq([homeLink('#/meetings'), homeLink('https://x.y/z'), homeLink('javascript:alert(1)'), homeLink('http://x')], ['#/meetings', 'https://x.y/z', '', '']);
+});
+
+test('folders: seed tree, children in order, moves never go inside themselves, delete takes the subtree', () => {
+  const f = new Map(SEED_FOLDERS.map((x) => [x.id, x]));
+  eq(new Set(SEED_FOLDERS.map((x) => x.id)).size, SEED_FOLDERS.length, 'ids unique');
+  eq(childrenOf(f, ROOT).map((x) => x.name), ['미팅 자료', '어레이 설계', '회로 보드', '측정 데이터', '논문 · 참고 자료']);
+  eq(childrenOf(f, 'array').map((x) => x.name), ['v1', 'v2-1', 'v2-2', 'v2-3', 'v3-1', 'v3-2', 'v3-3']);
+  f.set('lost', { id: 'lost', parent: 'gone', name: '고아', order: 999 });
+  eq(childrenOf(f, ROOT).pop().id, 'lost', 'a folder whose parent is gone shows at the top');
+  eq(placesFor(f, 'array').some((p) => p.id === 'array' || p.id === 'array-v1'), false);
+  eq(placesFor(f, 'array').find((p) => p.id === 'meetings-2026-09-11').depth, 2);
+  eq(deleteFolderOps(f, 'array').length, 8);
+  eq(descendantsOf(f, 'meetings').map((x) => x.id), ['meetings-2026-09-11']);
+  eq(nextOrder(f, 'array') > Math.max(...childrenOf(f, 'array').map((x) => x.order)), true);
+});
+
+test('memos: only text, line breaks and the six colors survive', () => {
+  eq(sanitizeMemo('<b>굵게</b> <span class="mc-red">빨강</span><img src=x onerror=alert(1)><script>alert(2)</script>'), '굵게 <span class="mc-red">빨강</span>');
+  eq(sanitizeMemo('<span class="mc-evil" style="color:red">x</span>'), 'x');
+  eq(sanitizeMemo('첫 줄<div>둘째 줄</div><div><br></div><div>넷째</div>'), '첫 줄<br>둘째 줄<br><br>넷째');
+  eq(sanitizeMemo('a &amp; &lt;b&gt;<br><br>'), 'a &amp; &lt;b&gt;', 'escaped, trailing breaks dropped');
+  eq(memoText('<span class="mc-blue">파랑</span> 글자'), '파랑 글자');
+  eq(sanitizeMemo(''), '');
+});
+
+test('memos: painting a selection splits and merges runs', () => {
+  const runs = runsOf(document.createRange().createContextualFragment('가나다라마'));
+  eq(memoHtml(paintRuns(runs, 1, 3, 'red')), '가<span class="mc-red">나다</span>라마');
+  const twice = paintRuns(paintRuns(runs, 1, 3, 'red'), 2, 5, 'red');
+  eq(memoHtml(twice), '가<span class="mc-red">나다라마</span>');
+  eq(memoHtml(paintRuns(twice, 0, 5, '')), '가나다라마', 'back to the default gray');
+});
+
+test('memos: editor selection ↔ character offsets', () => {
+  const box = document.createElement('div');
+  box.innerHTML = '가<span class="mc-red">나다</span><br>라';
+  document.body.append(box);
+  const [red] = box.getElementsByTagName('span');
+  eq(memoOffset(box, red.firstChild, 1), 2);
+  eq(memoOffset(box, box, 2), 3, 'just before the <br>');
+  eq(memoOffset(box, box.lastChild, 1), 5);
+  const [n, o] = memoPoint(box, 4);
+  eq([n.nodeValue, o], ['라', 0]);
+  const typed = document.createElement('div');
+  typed.innerHTML = '첫<div>둘</div>';                 // what Enter makes while typing
+  eq(memoOffset(typed, typed.lastChild.firstChild, 0), 2);
+  box.remove();
 });
 
 // ---- design files: every picture and file listed exists, at the listed size

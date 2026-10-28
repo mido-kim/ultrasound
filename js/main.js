@@ -1,12 +1,17 @@
-// Wearable Ultrasound: startup, sign-in, routing and the screens: home, board
-// checks (list, one board, reference guide), array / phantom protocols (runs,
-// one run, the step editor) and settings.
+// Wearable Ultrasound: startup, sign-in, routing and the screens: home (pictures,
+// 메모판, 목차), board checks (list, one board, reference guide), array / phantom
+// protocols (runs, one run, the step editor) and settings.
 // Pages are HTML strings put in #app; input is handled by delegation on #app.
 
 import { backupFile, csvFor, parseBackup } from './backup.js';
 import { firebaseConfig } from './config.js';
 import { MAX_PICTURE, baseName, fileSize, isPicture } from './files.js';
+import {
+  MEMO_COLORS, MEMO_MAX, ROOT, SEED_FOLDERS, childrenOf, deleteFolderOps, descendantsOf, memoHtml, memoOffset, memoPoint,
+  memoText, nextOrder, paintRuns, placesFor, runsOf, sanitizeMemo,
+} from './folders.js';
 import { GUIDE_HTML } from './guide.js';
+import { homeImages, homeLink, homeRecord, moved, withImage } from './home.js';
 import { describeSpec, judge } from './judge.js';
 import { pending as legacyPending, runImport } from './legacy-import.js';
 import { NOTE_MAX, deleteNotesOps, newNote, notesFor, targetOf } from './notes.js';
@@ -262,18 +267,294 @@ function homePage() {
     <p class="muted small">${esc(blurb)}</p>
     ${status}
   </a>`;
-  const home = store.kind === 'cloud' ? state.config.get('home') : null;
-  const fig = home?.image && state.files.has(home.image) ? `
-  <figure class="home-fig">
-    ${picture(home.image, home.caption)}
-    <figcaption><a href="${esc(home.link || '#/meetings')}">${esc(home.caption)} →</a></figcaption>
-  </figure>` : '';
-  return `${fig}<div class="hub">
+  return `${homePictures()}${stickyBoard()}${tocPanel()}<div class="hub">
     ${card('#/boards', '회로 보드 검증', '메인 · HV 보드를 단계별로 확인', boardsSummary())}
     ${Object.entries(PROTO_KINDS).map(([k, K]) => card(`#/p/${k}`, K.name, K.blurb, protoSummary(k))).join('')}
     ${card('#/meetings', '미팅 자료', '미팅 슬라이드 모음', meetingsSummary())}
     ${card('#/places', '자료 지도', '자료가 어디에 있는지', placesSummary())}
   </div>`;
+}
+
+// ---- pictures at the top (home.js). 그림 편집 shows the + / move / size / edit buttons.
+let homeEdit = false;
+const shownHomeImages = () => homeImages(state.config.get('home')).filter((x) => state.files.has(x.file));
+
+function homePictures() {
+  if (store.kind !== 'cloud') return '';
+  const list = shownHomeImages();
+  const figs = list.map((im, i) => {
+    const link = homeLink(im.link);
+    const text = im.caption ? (link ? `<a href="${esc(link)}"${link.startsWith('https') ? ' target="_blank" rel="noopener"' : ''}>${esc(im.caption)} →</a>` : esc(im.caption)) : '';
+    const tools = homeEdit ? `<span class="pic-tools">
+        <button type="button" data-act="home-move" data-i="${i}" data-step="-1" aria-label="앞으로"${i === 0 ? ' disabled' : ''}>←</button>
+        <button type="button" data-act="home-move" data-i="${i}" data-step="1" aria-label="뒤로"${i === list.length - 1 ? ' disabled' : ''}>→</button>
+        <button type="button" data-act="home-pic" data-i="${i}">편집</button></span>` : '';
+    return `<figure class="home-pic${im.wide ? ' wide' : ''}">${picture(im.file, im.caption || '홈 그림')}
+      ${text || tools ? `<figcaption><span>${text}</span>${tools}</figcaption>` : ''}</figure>`;
+  }).join('');
+  const bar = `<div class="row home-pic-bar">
+      ${homeEdit ? `<label class="btn">+ 그림<input type="file" id="home-pic-file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" multiple hidden></label>
+      <span class="small muted">넓게 / 반쪽은 그림마다 편집에서 골라요.</span>` : ''}
+      <span class="spacer"></span>
+      <button type="button" class="link" data-act="home-edit">${homeEdit ? '다 했어요' : (list.length ? '그림 편집' : '+ 홈 그림')}</button>
+    </div>`;
+  return `<section class="home-pics">${figs ? `<div class="home-figs">${figs}</div>` : ''}${bar}</section>`;
+}
+
+function saveHomeImages(images) {
+  commit([{ op: 'put', coll: 'config', obj: homeRecord(images, who().name) }]);
+}
+
+async function addHomePictures(files) {
+  const bad = [];
+  const good = [...files].filter((f) => {
+    if (!isPicture(f.type)) bad.push(`${f.name}: 그림이 아니에요`);
+    else if (f.size > MAX_PICTURE) bad.push(`${f.name}: ${fileSize(f.size)}`);
+    else return true;
+    return false;
+  });
+  if (bad.length) toast(`안 넣은 파일: ${bad.join(', ')}`);
+  if (!good.length) return;
+  if (!navigator.onLine) return toast('그림을 올리려면 인터넷 연결이 필요해요.');
+  let images = homeImages(state.config.get('home'));
+  for (const [n, f] of good.entries()) {
+    try {
+      const meta = await store.uploadFile(f, { owner: 'home', createdBy: who().name },
+        (i, total) => toast(`올리는 중 ${n + 1}/${good.length} · ${Math.round((100 * i) / total)}%`));
+      images = withImage(images, { file: meta.id, caption: baseName(f.name), link: '', wide: !images.length });
+      saveHomeImages(images);
+    } catch (err) {
+      console.error(err);
+      return toast(`올리지 못했어요: ${err.message}`);
+    }
+  }
+  toast('홈에 그림을 넣었어요');
+}
+
+function homePicDialog(i) {
+  const images = homeImages(state.config.get('home'));
+  const im = images[i];
+  if (!im) return;
+  const own = state.files.get(im.file)?.owner === 'home';
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>홈 그림 편집</h2>
+    <div class="dlg-pic">${picture(im.file, im.caption)}</div>
+    <label class="field">설명<input type="text" name="caption" value="${esc(im.caption || '')}" autocomplete="off"></label>
+    <label class="field">누르면 갈 곳 (선택)<input type="text" name="link" value="${esc(im.link || '')}" autocomplete="off" placeholder="#/meetings 또는 https://…"></label>
+    <label class="field">크기<select name="wide">
+      <option value="1"${im.wide ? ' selected' : ''}>넓게 (한 줄 전체)</option>
+      <option value=""${im.wide ? '' : ' selected'}>반쪽 (옆에 하나 더)</option></select></label>
+    <div class="actions">
+      <button type="button" class="danger left" data-del>홈에서 빼기</button>
+      <button type="button" data-cancel>취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>`);
+  hydrateIn(dlg);
+  const f = dlg.querySelector('form');
+  dlg.querySelector('[data-del]').addEventListener('click', () => {
+    if (!confirm(own ? '홈에서 빼고 그림 파일도 지울까요?' : '홈에서 뺄까요? 원래 항목의 그림은 그대로 있어요.')) return;
+    saveHomeImages(images.filter((_, j) => j !== i));
+    if (own) forgetFiles([im.file]);
+    dlg.close();
+  });
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const link = f.elements.link.value.trim();
+    if (link && !homeLink(link)) return toast('#/… (앱 안 화면) 또는 https://… 주소를 넣어요');
+    saveHomeImages(images.map((x, j) => (j === i ? { ...x, caption: f.elements.caption.value.trim(), link, wide: !!f.elements.wide.value } : x)));
+    dlg.close();
+  });
+}
+
+// ---- 메모판: notes for everyone (notes.js, target 'home'), newest first.
+const HOME_NOTES = 'home';
+const isMine = (n) => (n.byUid && store.uid ? n.byUid === store.uid : n.by === who().name);
+
+function stickyBoard() {
+  const list = notesFor(state.notes, HOME_NOTES).reverse();
+  const box = 'nt-home';
+  const notes = list.map((n) => `
+    <article class="sticky">
+      <p>${esc(n.text)}</p>
+      <footer><b>${esc(n.by || '')}</b><span>${when(n.at)}${n.editedAt ? ' · 고침' : ''}</span><span class="spacer"></span>
+        ${isMine(n) ? `<button type="button" class="link" data-act="edit-sticky" data-id="${esc(n.id)}">고치기</button>` : ''}
+        <button type="button" class="link" data-act="del-note" data-id="${esc(n.id)}">지우기</button></footer>
+    </article>`).join('');
+  return `<section class="stickies" aria-labelledby="stickies-h">
+    <h2 id="stickies-h">메모판${list.length ? ` <span class="muted small">${list.length}</span>` : ''}</h2>
+    <div class="sticky-grid">
+      <div class="sticky sticky-new">
+        <textarea id="${box}" data-note-for="${HOME_NOTES}" rows="3" maxlength="${NOTE_MAX}" placeholder="모두에게 남길 메모" aria-label="메모판에 남길 메모">${esc(noteDrafts.get(HOME_NOTES) || '')}</textarea>
+        <button type="button" data-act="add-note" data-target="${HOME_NOTES}" data-box="${box}">붙이기</button>
+      </div>${notes}
+    </div>
+  </section>`;
+}
+
+function stickyDialog(id) {
+  const n = state.notes.get(id);
+  if (!n || !isMine(n)) return;
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>메모 고치기</h2>
+    <label class="field">메모<textarea name="text" rows="5" maxlength="${NOTE_MAX}">${esc(n.text)}</textarea></label>
+    <div class="actions"><button type="button" data-cancel>취소</button><button type="submit" class="primary">저장</button></div>
+  </form>`);
+  const f = dlg.querySelector('form');
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = f.elements.text.value.trim();
+    if (!text) return f.elements.text.focus();
+    commit([{ op: 'put', coll: 'notes', obj: { ...n, text, editedAt: new Date().toISOString() } }]);
+    dlg.close();
+  });
+}
+
+// ---- 목차: the Drive folder tree (folders.js). Which folders are open is kept per device.
+const OPEN_KEY = 'usbringup.toc.open';
+const openFolders = new Set(readJSON(OPEN_KEY, []));
+const ICON_PEN = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+const ICON_LINK = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+function folderTools(f) {
+  const link = safeLink(f.drive);
+  return `<button type="button" class="icon-btn" data-act="edit-folder" data-id="${esc(f.id)}" aria-label="${esc(f.name)} 메모 · 편집">${ICON_PEN}</button>`
+    + (link ? `<a class="icon-btn" href="${esc(link)}" target="_blank" rel="noopener" aria-label="${esc(f.name)} Drive 폴더 열기">${ICON_LINK}</a>` : '');
+}
+
+function tocPanel() {
+  const folders = state.folders;
+  if (!folders.size) {
+    return `<section class="panel toc"><h2>목차</h2>
+      <p class="small muted">Google Drive 폴더 구조를 여기에 보여요. 폴더마다 메모와 Drive 링크를 달아요.</p>
+      <div class="row"><button type="button" class="primary" data-act="seed-folders">Drive 폴더 목록 넣기</button></div></section>`;
+  }
+  const root = folders.get(ROOT) || { id: ROOT, name: 'Wearable Ultrasound', memo: '', drive: '' };
+  const items = (parent) => childrenOf(folders, parent).map((f) => {
+    const kids = childrenOf(folders, f.id).length;
+    const open = kids && openFolders.has(f.id);
+    const memo = sanitizeMemo(f.memo);
+    return `<li>
+      <div class="toc-row">
+        ${kids ? `<button type="button" class="toc-caret" data-act="toc-toggle" data-id="${esc(f.id)}" aria-expanded="${open ? 'true' : 'false'}" aria-label="${esc(f.name)} ${open ? '접기' : '펼치기'}"></button>` : '<span class="toc-caret" aria-hidden="true"></span>'}
+        <div class="toc-main">
+          <span class="toc-name${kids ? ' has-kids' : ''}"${kids ? ` data-act="toc-toggle" data-id="${esc(f.id)}"` : ''}>${esc(f.name)}${kids && !open ? ` <span class="muted small">${kids}</span>` : ''}</span>
+          ${folderTools(f)}
+          ${memo ? `<span class="toc-memo">${memo}</span>` : ''}
+        </div>
+      </div>
+      ${open ? `<ul class="toc-list">${items(f.id)}</ul>` : ''}
+    </li>`;
+  }).join('');
+  const parents = [...folders.values()].filter((f) => f.id !== ROOT && childrenOf(folders, f.id).length);
+  const allOpen = parents.length && parents.every((f) => openFolders.has(f.id));
+  const rootMemo = sanitizeMemo(root.memo);
+  return `<section class="panel toc">
+    <div class="row toc-head"><h2>목차</h2><span class="muted small">${esc(root.name)} · Google Drive</span>${folderTools(root)}
+      <span class="spacer"></span>
+      ${parents.length ? `<button type="button" class="link" data-act="toc-all">${allOpen ? '모두 접기' : '모두 펴기'}</button>` : ''}
+      <button type="button" data-act="add-folder">+ 폴더</button></div>
+    ${rootMemo ? `<p class="toc-memo">${rootMemo}</p>` : ''}
+    <ul class="toc-list top">${items(ROOT)}</ul>
+  </section>`;
+}
+
+function toggleFolder(id, open = !openFolders.has(id)) {
+  if (open) openFolders.add(id);
+  else openFolders.delete(id);
+  writeJSON(OPEN_KEY, [...openFolders]);
+}
+
+function seedFolders() {
+  const now = new Date().toISOString();
+  commit(SEED_FOLDERS.filter((f) => !state.folders.has(f.id))
+    .map((f) => ({ op: 'put', coll: 'folders', obj: { ...f, createdAt: now, createdBy: who().name, updatedAt: now, updatedBy: who().name } })));
+  toast('Drive 폴더 목록을 넣었어요. 폴더 옆 연필로 메모와 링크를 달아요.');
+}
+
+// Adds or edits a folder: name, where it sits, the memo (pick words, then a
+// color) and its Drive link. The dialog is outside #app, so redraws while
+// typing don't touch it.
+function folderDialog(folder) {
+  const editing = !!folder;
+  const isRoot = folder?.id === ROOT;
+  const places = placesFor(state.folders, editing ? folder.id : null);
+  const parent = folder?.parent || ROOT;
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>${isRoot ? 'Drive 폴더 (맨 위)' : editing ? '폴더 편집' : '폴더 추가'}</h2>
+    <label class="field">이름<input type="text" name="name" value="${esc(folder?.name || '')}" required autocomplete="off" placeholder="Drive 폴더 이름 그대로"></label>
+    ${isRoot ? '' : `<label class="field">위치<select name="parent">${places.map((p) => `<option value="${esc(p.id)}"${p.id === parent ? ' selected' : ''}>${'　'.repeat(p.depth)}${esc(p.name)}</option>`).join('')}</select></label>`}
+    <div class="field memo-field">
+      <span class="lbl" id="memo-lbl">메모</span>
+      <div class="memo-tools" role="toolbar" aria-label="글자 색">
+        ${MEMO_COLORS.map((c) => `<button type="button" class="swatch" data-color="${c.key}" title="${esc(c.label)}" aria-label="${esc(c.label)}"><i class="mc-${c.key || 'base'}"></i></button>`).join('')}
+        <span class="small muted">글자를 끌어서 고른 뒤 색을 눌러요</span>
+      </div>
+      <div class="memo-edit" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="memo-lbl">${sanitizeMemo(folder?.memo)}</div>
+    </div>
+    <label class="field">Drive 폴더 링크<input type="url" name="drive" value="${esc(folder?.drive || '')}" autocomplete="off" placeholder="https://drive.google.com/drive/folders/…"></label>
+    <div class="actions">
+      ${editing && !isRoot ? '<button type="button" class="danger left" data-del>삭제</button>' : ''}
+      <button type="button" data-cancel>취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>`);
+  const f = dlg.querySelector('form');
+  const editor = dlg.querySelector('.memo-edit');
+  const tools = dlg.querySelector('.memo-tools');
+  tools.addEventListener('mousedown', (e) => e.target.closest('.swatch') && e.preventDefault()); // keep the selection
+  tools.addEventListener('click', (e) => {
+    const sw = e.target.closest('.swatch');
+    if (!sw) return;
+    const sel = getSelection();
+    const range = sel.rangeCount ? sel.getRangeAt(0) : null;
+    if (!range || !editor.contains(range.commonAncestorContainer) || range.collapsed) return toast('먼저 메모에서 글자를 끌어서 골라요');
+    const a = memoOffset(editor, range.startContainer, range.startOffset);
+    const b = memoOffset(editor, range.endContainer, range.endOffset);
+    editor.innerHTML = memoHtml(paintRuns(runsOf(editor), a, b, sw.dataset.color));
+    const [sn, so] = memoPoint(editor, a);
+    const [en, eo] = memoPoint(editor, b);
+    const r = document.createRange();
+    r.setStart(sn, so);
+    r.setEnd(en, eo);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  });
+  editor.addEventListener('paste', (e) => { // plain text only
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    if (!document.execCommand('insertText', false, text)) editor.append(text);
+  });
+  dlg.querySelector('[data-del]')?.addEventListener('click', () => {
+    const n = descendantsOf(state.folders, folder.id).length;
+    if (!confirm(`목차에서 지울까요? ${folder.name}${n ? ` (안의 폴더 ${n}개도)` : ''}. Drive 폴더는 그대로 남아요.`)) return;
+    commit(deleteFolderOps(state.folders, folder.id));
+    dlg.close();
+  });
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = f.elements.name.value.trim();
+    if (!name) return f.elements.name.focus();
+    const drive = f.elements.drive.value.trim();
+    if (drive && !safeLink(drive)) return toast('링크는 https://로 시작해야 해요.');
+    const memo = sanitizeMemo(editor.innerHTML);
+    if (memoText(memo).length > MEMO_MAX) return toast(`메모는 ${MEMO_MAX}자까지예요.`);
+    const now = new Date().toISOString();
+    const to = isRoot ? '' : f.elements.parent.value;
+    const moving = !editing || folder.parent !== to;
+    commit([{ op: 'put', coll: 'folders', obj: {
+      ...(folder || { id: uid(), createdAt: now, createdBy: who().name }),
+      parent: to, name, memo, drive,
+      order: moving && !isRoot ? nextOrder(state.folders, to) : folder.order,
+      updatedAt: now, updatedBy: who().name,
+    } }]);
+    if (to && to !== ROOT) toggleFolder(to, true); // show where it went
+    dlg.close();
+  });
+  if (!editing) f.elements.name.focus();
 }
 
 function meetingsSummary() {
@@ -620,8 +901,12 @@ function picture(file, alt) {
 }
 
 function hydrateFiles() {
+  hydrateIn(app);
+}
+
+function hydrateIn(root) {
   if (store.kind !== 'cloud') return;
-  for (const el of app.querySelectorAll('[data-src-file]')) {
+  for (const el of root.querySelectorAll('[data-src-file]')) {
     const id = el.dataset.srcFile;
     const set = (url) => (el.tagName === 'IMG' ? el.setAttribute('src', url) : el.setAttribute('href', url));
     if (fileUrls.has(id)) set(fileUrls.get(id));
@@ -636,8 +921,8 @@ function forgetFiles(ids) {
     fileUrls.delete(id);
     fileLoads.delete(id);
   }
-  const home = state.config.get('home');
-  if (home && ids.includes(home.image)) commit([{ op: 'remove', coll: 'config', id: 'home' }]);
+  const images = homeImages(state.config.get('home'));
+  if (images.some((x) => ids.includes(x.file))) saveHomeImages(images.filter((x) => !ids.includes(x.file)));
 }
 
 const pictureIdsOf = (item) => (item.images || []).map((x) => x.file);
@@ -647,11 +932,11 @@ const contentLines = (item) => String(item.contents || '').split('\n').map((x) =
 // What a meeting or a design version holds: pictures, the Drive folder and
 // other links, and the list of files in that folder.
 function itemBody(item, coll) {
-  const home = state.config.get('home');
+  const onHome = new Set(homeImages(state.config.get('home')).map((x) => x.file));
   const pics = (item.images || []).map((im) => `
     <figure>
       ${picture(im.file, im.caption || item.title)}
-      <figcaption><span>${esc(im.caption || '')}</span>${home?.image === im.file
+      <figcaption><span>${esc(im.caption || '')}</span>${onHome.has(im.file)
     ? '<span class="chip ok">홈 화면 그림</span>'
     : `<button type="button" class="link" data-act="set-home" data-file="${esc(im.file)}" data-coll="${coll}" data-id="${esc(item.id)}">홈에 표시</button>`}</figcaption>
     </figure>`).join('');
@@ -1058,6 +1343,9 @@ function wireEvents() {
       settings.theme = t.value;
       saveSettings(settings);
       applyTheme();
+    } else if (t.id === 'home-pic-file' && t.files?.length) {
+      addHomePictures([...t.files]);
+      t.value = '';
     } else if (t.id === 'import-file' && t.files?.[0]) {
       importBackup(t.files[0]);
       t.value = '';
@@ -1118,6 +1406,27 @@ function onClick(e) {
     case 'copy-path': return copy(el.dataset.path, '경로를 복사했어요');
     case 'set-home': return setHome(el.dataset.coll, el.dataset.id, el.dataset.file);
     case 'add-note': return addNote(el.dataset.target, el.dataset.box);
+    case 'edit-sticky': return stickyDialog(el.dataset.id);
+    case 'home-edit':
+      homeEdit = !homeEdit;
+      return render();
+    case 'home-move': return saveHomeImages(moved(homeImages(state.config.get('home')), Number(el.dataset.i), Number(el.dataset.step)));
+    case 'home-pic': return homePicDialog(Number(el.dataset.i));
+    case 'toc-toggle':
+      toggleFolder(el.dataset.id);
+      return render();
+    case 'toc-all': {
+      const parents = [...state.folders.values()].filter((f) => f.id !== ROOT && childrenOf(state.folders, f.id).length);
+      const open = !parents.every((f) => openFolders.has(f.id));
+      parents.forEach((f) => toggleFolder(f.id, open));
+      return render();
+    }
+    case 'seed-folders': return seedFolders();
+    case 'add-folder': return folderDialog(null);
+    case 'edit-folder': {
+      const folder = state.folders.get(el.dataset.id) || (el.dataset.id === ROOT ? { id: ROOT, parent: '', name: 'Wearable Ultrasound', memo: '', drive: '', order: 0 } : null);
+      return folder && folderDialog(folder);
+    }
     case 'del-note': return deleteNote(el.dataset.id);
     case 'run-import': return startImport();
     case 'copy-uid': return copy(store.uid, 'UID를 복사했어요');
@@ -1257,8 +1566,9 @@ function setHome(coll, id, file) {
   const image = item?.images?.find((im) => im.file === file);
   if (!image) return;
   const caption = coll === 'meetings' ? `${item.title} · ${item.date} 미팅` : `${item.title} · ${image.caption || '설계'}`;
-  commit([{ op: 'put', coll: 'config', obj: { id: 'home', image: file, caption, link: coll === 'meetings' ? '#/meetings' : '#/p/array/designs', updatedAt: new Date().toISOString(), updatedBy: who().name } }]);
-  toast('홈 화면 그림으로 정했어요');
+  const images = homeImages(state.config.get('home'));
+  saveHomeImages(withImage(images, { file, caption, link: coll === 'meetings' ? '#/meetings' : '#/p/array/designs', wide: !images.length }));
+  toast('홈 화면에 넣었어요');
 }
 
 // Adds or edits a meeting or a design version: text, the Drive folder, other

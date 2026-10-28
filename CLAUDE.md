@@ -60,6 +60,17 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   `{id, target: '<coll>/<id>', text, by, byUid, at}`), one record per note so
   two writers never overwrite each other. `noteDrafts` in main.js keeps a
   half-typed note across redraws; deleting an item deletes its notes.
+- Home (`homePage` in main.js), top to bottom: pictures (`js/home.js`,
+  `config/home.images` [{file, caption, link, wide}]; `image`/`caption`/`link`
+  repeat the first picture for 0.6 and older), 메모판 (the `notes` records with
+  target `'home'`), 목차, then the five cards.
+- `js/folders.js`: 목차, the Google Drive folder tree. One record per folder
+  (`folders`: {id, parent, name, order, memo, drive}); `ROOT` is the Drive
+  folder itself. `SEED_FOLDERS` (fixed ids) = the `../drive_upload/` layout.
+  A memo is HTML of text, `<br>` and `<span class="mc-<color>">` only:
+  always pass it through `sanitizeMemo` before putting it on the page. The
+  folder editor is a dialog (outside #app), so redraws never touch the
+  contenteditable memo. Open folders are kept per device (`usbringup.toc.open`).
 - `js/places.js`: 자료 지도 groups and the starting list ("기본 목록 넣기").
 - `js/legacy-import.js` + `js/designs.js` + `js/meetings.js` + `designs/` +
   `meetings/`: what the site used to serve, moved once into records from
@@ -80,6 +91,10 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   when the file list changes.
 
 ## Data
+
+Note (`notes`): `{ id, target: '<coll>/<id>' | 'home', text, by, byUid, at,
+editedAt? }`. Folder (`folders`): `{ id, parent, name, order, memo, drive,
+updatedAt, updatedBy }`.
 
 Board: `{ id, kind: 'main' | 'hv' | 'system', name, notes, mainId, hvId,
 createdAt, createdBy, updatedAt }`. Run: `{ id, kind: 'array' | 'phantom',

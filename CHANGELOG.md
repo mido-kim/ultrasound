@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0 — 2026-10-28
+
+- **홈 그림 여러 장**: 그림 편집 → + 그림 (5 MB까지), ← → 순서, 편집에서
+  설명 · 누르면 갈 곳 · 크기 (넓게 = 한 줄 전체, 반쪽 = 옆에 하나 더).
+  "홈에 표시" now adds a picture instead of replacing the one there. The first
+  picture is still stored where 0.6 and older read it, so they show that one.
+- **메모판** on the home screen: notes for everyone, with the writer's name and
+  time. Anyone can remove a note (it asks first); only the writer can change it.
+  Same records as the item notes (`notes`, target `home`).
+- **목차**: the Google Drive folder tree, as a toggle list. "Drive 폴더 목록
+  넣기" starts it with the Drive layout (미팅 자료, 어레이 설계/v1…v3-3, 회로
+  보드, 측정 데이터, 논문 · 참고 자료). Each folder has a pencil (name,
+  where it sits, a memo, its Drive link; delete) and a link button to its Drive
+  folder. In the memo, drag over words and press a color; the default is dark
+  gray. Which folders are open is kept per device.
+- Home order: pictures, 메모판, 목차, then the five cards.
+
 ## 0.6.1 — 2026-10-28
 
 - 어레이 설계: versions 3-1, 3-2 and 3-3 (4 × 4 elements) join the 설정 →

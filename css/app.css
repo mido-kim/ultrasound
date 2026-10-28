@@ -20,6 +20,15 @@
   --board: #e6eee9;
   --board-line: #9fb3aa;
   --shadow: 0 10px 30px rgb(20 40 30 / 0.12);
+  --memo: #4a524e;
+  --mc-red: #c62828;
+  --mc-orange: #b45a00;
+  --mc-green: #2e7d32;
+  --mc-blue: #1f5fbf;
+  --mc-purple: #7b3fb0;
+  --sticky: #fff6c9;
+  --sticky-line: #e8d78c;
+  --sticky-ink: #3a3420;
   --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   /* Plex Mono has no Hangul: let Korean fall to Plex Sans KR, not a wide CJK monospace face */
   --f-mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, Consolas, "Courier New", monospace;
@@ -42,6 +51,15 @@
   --board: #18231f;
   --board-line: #3f544b;
   --shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  --memo: #aeb8b3;
+  --mc-red: #ff8a80;
+  --mc-orange: #ffb35c;
+  --mc-green: #7fd49a;
+  --mc-blue: #8ab4ff;
+  --mc-purple: #c9a2ff;
+  --sticky: #2e2916;
+  --sticky-line: #4d4425;
+  --sticky-ink: #f0e6c0;
   color-scheme: dark;
 }
 
@@ -233,13 +251,66 @@ a.card:hover { border-color: var(--accent); }
 .seg button[aria-pressed="true"][data-s="skip"] { background: var(--muted); color: var(--surface); }
 .note-in, .small-in { font-size: 13px !important; padding: 6px 8px !important; }
 
-/* ---------------------------------------------------------------- home picture, meeting slides */
-.home-fig { margin: 0; display: grid; gap: 6px; max-width: 760px; }
-/* slides have a white page, so they sit on white in both themes */
-.home-fig img, .meeting-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
-.home-fig figcaption { font-size: 13px; }
-.home-fig figcaption a { text-decoration: none; }
+/* ---------------------------------------------------------------- home: pictures, 메모판, 목차; meeting slides */
+/* slides and drawings have a white page, so they sit on white in both themes */
+.meeting-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
 .meeting-thumb { display: block; max-width: 520px; }
+.home-pics { display: grid; gap: 4px; }
+.home-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; max-width: 920px; }
+.home-pic { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.home-pic.wide { grid-column: 1 / -1; }
+.home-pic img { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.home-pic img:not([src]) { aspect-ratio: 16 / 9; }
+.home-pic figcaption { font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.home-pic figcaption a { text-decoration: none; }
+.pic-tools { display: inline-flex; gap: 4px; }
+.pic-tools button { padding: 4px 10px; font-size: 13px; }
+.home-pic-bar { max-width: 920px; }
+.home-pic-bar button.link { font-size: 13px; padding: 2px 0; }
+@media (max-width: 640px) { .home-figs { grid-template-columns: minmax(0, 1fr); } }
+.dlg-pic img { display: block; max-width: 100%; max-height: 180px; margin: 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+
+.stickies { display: grid; gap: 10px; }
+.stickies h2 { font-size: 16px; }
+.sticky-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; align-items: start; }
+.sticky { min-width: 0; display: grid; gap: 8px; padding: 12px 14px 10px; background: var(--sticky); border: 1px solid var(--sticky-line); border-radius: 4px 4px 16px 4px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.06); }
+.sticky p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; color: var(--sticky-ink); max-width: none; }
+.sticky footer { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.sticky footer b { color: var(--sticky-ink); font-weight: 600; }
+.sticky footer button.link { padding: 0; font-size: 12px; }
+.sticky-new { background: var(--surface); border: 1px dashed var(--line); }
+.sticky-new textarea { min-height: 72px; font-size: 14px; background: var(--surface); }
+.sticky-new button { justify-self: end; }
+
+.toc { gap: 8px; }
+.toc-head { gap: 6px 10px; }
+.toc-list { list-style: none; margin: 0; padding: 0 0 0 22px; display: grid; gap: 1px; max-width: none; }
+.toc-list.top { padding-left: 0; }
+.toc-list li { margin: 0; }
+.toc-row { display: flex; align-items: flex-start; gap: 4px; }
+.toc-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 34px; }
+.toc-caret { flex: none; width: 24px; height: 34px; padding: 0; border: 0; background: none; display: inline-grid; place-items: center; color: var(--muted); }
+.toc-caret[aria-expanded]::before { content: ""; border-style: solid; border-width: 5px 0 5px 7px; border-color: transparent transparent transparent currentColor; transition: transform 0.15s; }
+.toc-caret[aria-expanded="true"]::before { transform: rotate(90deg); }
+.toc-name { font-weight: 600; font-size: 15px; padding-right: 2px; }
+.toc-name.has-kids { cursor: pointer; }
+.icon-btn { flex: none; width: 28px; height: 28px; padding: 0; display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); }
+.icon-btn:hover { border-color: var(--line); color: var(--accent); }
+.toc-memo { flex: 1 1 220px; min-width: 0; padding: 2px 0 6px 6px; font-size: 13.5px; line-height: 1.5; color: var(--memo); overflow-wrap: anywhere; max-width: none; }
+p.toc-memo { padding-left: 0; }
+.mc-base { color: var(--memo); }
+.mc-red { color: var(--mc-red); }
+.mc-orange { color: var(--mc-orange); }
+.mc-green { color: var(--mc-green); }
+.mc-blue { color: var(--mc-blue); }
+.mc-purple { color: var(--mc-purple); }
+.memo-field { display: grid; gap: 6px; }
+.memo-field .lbl { font-size: 13px; color: var(--muted); }
+.memo-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.swatch { width: 32px; height: 32px; padding: 0; justify-content: center; }
+.swatch i { width: 16px; height: 16px; border-radius: 50%; background: currentColor; }
+.memo-edit { min-height: 88px; max-height: 40vh; overflow: auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--memo); font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.memo-edit:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---------------------------------------------------------------- array design files */
 .design ul.small { color: var(--muted); }
