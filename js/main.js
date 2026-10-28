@@ -1025,6 +1025,7 @@ function designsPage() {
     ${back('#/p/array', PROTO_KINDS.array.name)}
     <div class="row"><h1>어레이 설계</h1><span class="spacer"></span>${cloudOn ? '<button type="button" class="primary" data-act="add-design">+ 버전 추가</button>' : ''}</div>
     <p class="lede">버전마다 미리보기 그림과 Drive 폴더. 파일은 Drive에 있어요.</p>
+    <div class="banner info"><b>JLC 주문할 때 (FPC 1)</b><p>금 핑거 두께 <span class="mono">0.30 mm</span>, PI 스티프너 <span class="mono">0.25 mm</span>. 파일 이름의 0.225는 예전 값이에요.</p></div>
   </div>`;
   if (!cloudOn) return head + needsLogin('설계 버전은');
   const list = sortedDesigns();

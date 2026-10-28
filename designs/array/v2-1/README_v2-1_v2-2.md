@@ -4,9 +4,9 @@ Four single-layer FPCs. Upload each `*_JLC.zip` as its own flex PCB order.
 
 | Zip | What | Size (mm) | Stiffener |
 |---|---|---|---|
-| `array_v2-1_FPC1_signal_JLC.zip` | 2-1 signal: tail + 254 mm ribbon + array | 42.0 × 301.0 | PI 0.225 mm on the tail |
+| `array_v2-1_FPC1_signal_JLC.zip` | 2-1 signal: tail + 254 mm ribbon + array | 42.0 × 301.0 | PI 0.25 mm on the tail |
 | `array_v2-1_FPC2_ground_JLC.zip` | 2-1 ground layer | 42.0 × 20.0 | none |
-| `array_v2-2_FPC1_signal_JLC.zip` | 2-2 signal, wavy, cut to the traces | 41.0 × 299.7 | PI 0.225 mm on the tail |
+| `array_v2-2_FPC1_signal_JLC.zip` | 2-2 signal, wavy, cut to the traces | 41.0 × 299.7 | PI 0.25 mm on the tail |
 | `array_v2-2_FPC2_ground_JLC.zip` | 2-2 ground layer, wavy, cut to the traces | 41.0 × 18.7 | none |
 
 Pictures: `previews/v2-1_stack.png`, `previews/v2-2_stack.png` (the stack seen from the FPC 1 side) and `previews/v2-*_layout.png` (each FPC from its copper side, the tail, the whole length).
@@ -16,8 +16,11 @@ Pictures: `previews/v2-1_stack.png`, `previews/v2-2_stack.png` (the stack seen f
 - Flex PCB, **1 layer**
 - Thickness **0.11 mm** (25 µm PI), copper **1 oz (35 µm)**
 - Coverlay yellow, surface finish **ENIG**, no silkscreen
-- **FPC 1 only:** stiffener **PI 0.225 mm** — area in the `*-Stiffener_PI_0.225mm.gbr` file. Remark to paste:
-  > Single-sided FPC. PI stiffener 0.225 mm on the non-copper side under the gold fingers, 7 mm from the tip, full width (see Stiffener layer). Finger area total thickness 0.30 ± 0.03 mm for a Molex 54132 ZIF connector.
+- **FPC 1 only:** Gold Fingers **Yes, thickness 0.30 mm**, and Stiffener **Polyimide 0.25 mm**.
+  - Why 0.25 mm: JLC's PI calculator (1 layer, 0.11 mm, yellow coverlay, 0.30 mm gold fingers) gives 0.2575 mm theoretical and says to select 0.25 mm. With 0.225 mm the finger area would be about 0.27 mm, the bottom of the connector's 0.30 ± 0.03 mm.
+  - The stiffener area is in the `*-Stiffener_PI_0.225mm.gbr` file. Its name and label still say 0.225 mm from before; order 0.25 mm.
+  - Remark to paste:
+  > Single-sided FPC. PI stiffener 0.25 mm on the non-copper side under the gold fingers, 7 mm from the tip, full width (see Stiffener layer; its file name says 0.225, please use 0.25 mm). Gold finger total thickness 0.30 ± 0.03 mm for a Molex 54132 ZIF connector.
 - **2-2 only:** remark "Outline has narrow cuts (min 0.36 mm) between strips and islands; please laser-cut as drawn."
 
 FPC 1 is 301 mm long, inside JLC's regular flex maximum (234 × 490 mm).

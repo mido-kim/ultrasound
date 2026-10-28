@@ -13,10 +13,10 @@ v2-2 with three changes. Everything else is the same as v2-2 (see README.md): ta
 
 | Zip | Size (mm) | Stiffener |
 |---|---|---|
-| `array_v2-3_FPC1_signal_JLC.zip` | 41.0 × 304.4 | PI 0.225 mm on the tail (same as v2-1/v2-2) |
+| `array_v2-3_FPC1_signal_JLC.zip` | 41.0 × 304.4 | PI 0.25 mm on the tail (same as v2-1/v2-2) |
 | `array_v2-3_FPC2_ground_JLC.zip` | 41.0 × 23.4 | none |
 
-Order settings and remarks: same as v2-2 in README.md (1 layer, 0.11 mm, 1 oz, ENIG, yellow coverlay; PI stiffener 0.225 mm on FPC 1; laser-cut remark, now min cut 0.335 mm). Both boards pass the KiCad DRC with zero issues.
+Order settings and remarks: same as v2-2 in README.md (1 layer, 0.11 mm, 1 oz, ENIG, yellow coverlay; gold fingers 0.30 mm with a PI stiffener 0.25 mm on FPC 1; laser-cut remark, now min cut 0.335 mm). Both boards pass the KiCad DRC with zero issues.
 
 **Element edges over the far-row strips.** The 3 mm elements sit 1 mm apart, so a wavy far-row strip passes under the edges of the neighbouring elements, by up to 0.24 mm. At the wave peaks the trace copper is 0.08 mm outside a neighbour's outline; it stays under coverlay. Put ACF only on the pads, so the strips don't get bonded to the element edges.
 

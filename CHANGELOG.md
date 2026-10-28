@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4 — 2026-10-28
+
+- 어레이 설계: a note at the top for JLC orders: gold finger thickness 0.30 mm,
+  PI stiffener 0.25 mm (JLC's PI calculator for a 1-layer 0.11 mm FPC; the
+  0.225 in the stiffener file names is the old value). The README copies the
+  site still serves for v2-1 to v2-3 say the same.
+
 ## 0.7.3 — 2026-10-28
 
 - 어레이 설계: version 2-5 (v2-4 with the traces bending right under the
