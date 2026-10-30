@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.5 — 2026-10-31
+
+- 4단계: steps 4-1 and 4-6 match the new firmware (`firmware/us_control_v5_fw`).
+  4-1 passes when the COM port "US Control v5" appears (the VND042 has no
+  PC13 LED). 4-6 is `X` → `?`, since `R` fires continuously in this
+  firmware. Step ids unchanged.
+- The stage 4 "먼저" note and the guide's open list no longer say the
+  firmware was never compiled: it builds, and hasn't run on a board yet.
+
 ## 0.7.4 — 2026-10-28
 
 - 어레이 설계: a note at the top for JLC orders: gold finger thickness 0.30 mm,

@@ -64,7 +64,7 @@ export const STAGES = [
     setup: [['on', 'VND042 ↔ J1 · J2'], ['off', 'J2 벤치 전원 뺌'], ['hv', 'J3 단락 플러그 (1 · 2 · 3 묶음)'], ['off', 'HV 보드 연결 안 함'], ['off', 'R702 · 어레이 없음']],
     notes: [{
       tone: 'warn', tag: '먼저',
-      text: '펌웨어를 빌드해야 해요: CubeMX 프로젝트 + firmware/us_control_v5_user_code.c. 아직 한 번도 컴파일 안 됨.',
+      text: '펌웨어는 firmware/us_control_v5_fw 폴더에 있어요. 빌드는 되지만 보드에선 아직 안 돌려봤어요. 배선 · 올리는 법은 그 폴더 README에.',
     }, {
       tone: 'info', tag: 'J3 단락 플러그',
       text: 'J3의 1 · 2 · 3번을 한 선으로 묶은 플러그를 꽂아 ±HV를 GND에 고정해요. 이 상태에서만 게이트 파형(TP701 · TP703)을 일반 프로브로 봐요.',
@@ -175,12 +175,12 @@ export const STEPS = [
   { id: 'm3.lna1in', stage: 3, kind: 'main', group: '수신 회로', do: '큰 입력에서 TP602 (LNA1_IN) 최고 · 최저', pass: '0.1 – 3.1 V', spec: V(0.1, 3.1) },
 
   // ---------------------------------------------------------------- 4 · main + firmware
-  { id: 'm4.dfu', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'BOOT0 누른 채 USB → 펌웨어 쓰기', pass: 'PC13 LED, CDC 포트가 열림' },
+  { id: 'm4.dfu', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'BOOT0 누른 채 USB → 펌웨어 쓰기 → USB 다시 꽂기', pass: 'COM 포트 "US Control v5"가 생김' },
   { id: 'm4.status', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: '터미널에 ?', pass: '#st=0 … fault=0' },
   { id: 'm4.vnd5', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'VND042 5 V (J2-1)', pass: '4.75 – 5.25 V', spec: V(4.75, 5.25) },
   { id: 'm4.idle', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'J1-1 · J1-2: 리셋 직후, USB 다시 꽂은 뒤, S 보낸 뒤', pass: '모두 < 0.3 V', spec: V(undefined, 0.3) },
   { id: 'm4.nopulse', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'TP401 · TP402 스코프, 리셋 반복', pass: 'ARM 없이 펄스 없음, INB는 HIGH' },
-  { id: 'm4.shot', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'R → X → ?', pass: 'seq 1 증가, 상태 0으로 돌아옴' },
+  { id: 'm4.shot', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'X → ? (R은 계속 쏘기라서 안 씀)', pass: 'seq 1 증가, 상태 0으로 돌아옴' },
   { id: 'm4.lock', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'ARM 상태에서 SW201 열기, TP403', pass: '바로 LOW. 지연 기록' },
   { id: 'm4.lockfw', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'SW201 연 채 R · X 여러 번', pass: 'TP403 한 번도 안 올라감' },
   { id: 'm4.window', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'J1-2 (TX_WINDOW) 펄스 폭', pass: '버스트보다 길고 다음 펄스 전에 내려감', rec: true },
