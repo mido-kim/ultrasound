@@ -768,7 +768,7 @@ function judgeBadge(st, value) {
 // ---------------------------------------------------------------- guide
 
 function guidePage() {
-  const links = [['g-rules', '꼭 지킬 것'], ['g-map', '보드 지도'], ['g-power', '전원 순서'], ['g-trouble', '문제 생기면'], ['g-open', '남은 문제']];
+  const links = [['g-rules', '꼭 지킬 것'], ['g-map', '보드 지도'], ['g-power', '전원 순서'], ['g-laptop', '노트북 준비'], ['g-trouble', '문제 생기면'], ['g-open', '남은 문제']];
   return `
   <div class="page-head">
     ${back('#/boards', '회로 보드 검증')}

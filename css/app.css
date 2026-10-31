@@ -412,6 +412,7 @@ dialog .actions .left { margin-right: auto; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 pre.rules { margin: 0; padding: 12px; background: var(--code-bg); border-radius: 8px; overflow-x: auto; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.5; }
+pre.cmd { margin: 6px 0 2px; padding: 8px 10px; background: var(--code-bg); border-radius: 6px; overflow-x: auto; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.5; }
 
 /* ---------------------------------------------------------------- toast */
 .toast {
@@ -440,6 +441,8 @@ pre.rules { margin: 0; padding: 12px; background: var(--code-bg); border-radius:
 .stack { display: grid; gap: 10px; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .two > * { min-width: 0; }
+.guide .stack { align-content: start; }
+.guide .stack > * { min-width: 0; }
 .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.6 — 2026-10-31
+
+- 보드 지도 · 표: new section 노트북 준비 (Windows). What to install
+  (Python, PlatformIO and the viewer's packages, Zadig, a data USB-C cable)
+  and the build → upload → terminal → viewer commands for the us_kit zip,
+  with the Korean-path warning (PlatformIO doesn't support non-ASCII paths).
+- 4-1 passes on a new COM port in Device Manager → Ports: Windows lists the
+  board as a generic serial device, not as "US Control v5". The stage 4 note
+  points to 노트북 준비.
+
 ## 0.7.5 — 2026-10-31
 
 - 4단계: steps 4-1 and 4-6 match the new firmware (`firmware/us_control_v5_fw`).

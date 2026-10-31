@@ -194,6 +194,53 @@ export const GUIDE_HTML = `
 </section>
 
 
+<section id="g-laptop">
+  <div class="stage-head">
+    <span class="stage-num">노트북 준비</span>
+    <h2>펌웨어 · 뷰어용 노트북 (Windows)</h2>
+  </div>
+  <p>깔 언어는 Python 하나예요. 펌웨어(C) 컴파일러는 PlatformIO가 첫 빌드 때 알아서 받아요.</p>
+  <div class="two">
+    <div class="stack">
+      <h3>한 번만 설치</h3>
+      <ol>
+        <li><b>Python</b> python.org → Downloads, 최신 버전. 설치 화면에 "Add python.exe to PATH"가 보이면 체크</li>
+        <li><b>PlatformIO · 뷰어 패키지</b> 새 PowerShell에서
+          <pre class="cmd">python -m pip install platformio pyserial numpy matplotlib</pre></li>
+        <li><b>Zadig</b> zadig.akeo.ie. 업로드용 USB 드라이버 (순서 3에서 한 번)</li>
+        <li><b>USB-C 케이블</b> 데이터 되는 것. 충전 전용은 안 돼요</li>
+        <li><b>us_kit 압축</b> 펌웨어 · 뷰어 파일. <code>C:\\us_kit</code>에 풀기</li>
+      </ol>
+    </div>
+    <div class="stack">
+      <h3>순서</h3>
+      <ol>
+        <li><b>빌드</b> 끝에 SUCCESS. 첫 빌드는 몇 분 (툴체인 받기, 디스크 약 1 GB)
+          <pre class="cmd">cd C:\\us_kit\\us_control_v5_fw
+python -m platformio run</pre></li>
+        <li><b>부트로더</b> BOOT0 누른 채 USB 꽂고 BOOT0 떼기</li>
+        <li><b>Zadig</b> 노트북마다 한 번. Options → List All Devices → STM32 BOOTLOADER → WinUSB → Install Driver (또는 Replace Driver)</li>
+        <li><b>업로드</b> 끝나면 USB 다시 꽂기 → 장치 관리자 → 포트에 새 COM 포트
+          <pre class="cmd">python -m platformio run -t upload</pre></li>
+        <li><b>터미널</b> <code>?</code> 치면 상태 한 줄. 끄기는 Ctrl+C
+          <pre class="cmd">python -m platformio device monitor -p COM5</pre></li>
+        <li><b>뷰어</b>
+          <pre class="cmd">cd C:\\us_kit\\host
+python viewer_v5.py COM5</pre></li>
+      </ol>
+    </div>
+  </div>
+  <div class="note warn">
+    <span class="tag">한글 경로</span>
+    <p>PlatformIO는 경로에 한글이 있으면 빌드가 안 될 수 있어요. 압축은 <code>C:\\us_kit</code>처럼 영어 경로에 풀어요. Windows 사용자 이름이 한글이면 첫 빌드 전에 한 번 <code>setx PLATFORMIO_CORE_DIR C:\\.platformio</code> 하고 PowerShell을 새로 열어요.</p>
+  </div>
+  <div class="note info">
+    <span class="tag">COM 번호</span>
+    <p>COM5는 예시예요. 장치 관리자에서 본 번호를 쓰세요. 터미널과 뷰어는 같은 포트를 같이 못 열어요. 하나를 끄고 다른 걸 켜요.</p>
+  </div>
+</section>
+
+
 <section id="g-trouble">
   <div class="stage-head">
     <span class="stage-num">문제 생기면</span>
