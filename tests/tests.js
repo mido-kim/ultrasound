@@ -17,6 +17,9 @@ import {
   boardProgress, deleteBoardOps, earlierUnfinished, newBoard, nextBoardName, over50, resultId, resultOps,
 } from '../js/records.js';
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
+import {
+  CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, sampleUs,
+} from '../js/usc4.js';
 
 const results = [];
 function test(name, fn) {
@@ -94,6 +97,86 @@ test('stagesFor: kinds get their stages, shown numbers count from 1 per kind', (
   eq(stagesFor('system').map((s) => [s.n, s.shown]), [[5, 1], [6, 2], [7, 3]]);
   const s2 = stagesFor('hv').find((s) => s.n === 2);
   eq([s2.steps[0].no, s2.steps[0].id], ['3-1', 'h2.iin']);
+});
+
+test('steps: a 방법 list is lines of text, and only ASCII goes in code marks', () => {
+  for (const s of STEPS) {
+    if (s.how === undefined) continue;
+    if (!Array.isArray(s.how) || !s.how.length || s.how.some((x) => typeof x !== 'string' || !x.trim())) throw new Error(`${s.id}: how`);
+    for (const x of s.how) {
+      if ((x.match(/`/g) || []).length % 2) throw new Error(`${s.id}: unpaired \` in "${x}"`);
+      for (const [, code] of x.matchAll(/`([^`]*)`/g)) if (/[^\x20-\x7e]/.test(code)) throw new Error(`${s.id}: non-ASCII code "${code}"`);
+    }
+  }
+  if (!STEPS.filter((s) => s.stage === 4).every((s) => s.how)) throw new Error('a stage 4 step has no 방법');
+});
+
+// ---- firmware link (usc4.js), checked against host/usc4.py and main.c
+const hex = (h) => Uint8Array.from(h.match(/../g), (x) => parseInt(x, 16));
+// usc4.encode_line([0, 1, 2047, 4095], sequence=7, frame=1, element=3, mode='B', config=42,
+//   fs_hz=1600000, tx_hz=3840000, tx_time_us=123456, adc_delay_ns=6000, flags=1)
+const PY_PACKET = hex('5553433401013000070000000100000003420c0104002a00006a180000983a0040e2010000000000701700000800000000000100ff07ff0f185fd077');
+const PY_FIELDS = {
+  sequence: 7, frame: 1, element: 3, mode: 'B', flags: 1, config: 42, fsHz: 1600000, txHz: 3840000, txTimeUs: 123456, adcDelayNs: 6000,
+};
+const feedAll = (p, bytes) => p.feed(bytes);
+
+test('usc4: CRC-32 is zlib\'s, packets match the Python codec byte for byte', () => {
+  eq(crc32(new TextEncoder().encode('123456789')), 0xcbf43926, 'check value');
+  eq([...encodeLine([0, 1, 2047, 4095], PY_FIELDS)], [...PY_PACKET], 'small packet');
+  // usc4.encode_line([5]*480, sequence=2**32-1, element=15, mode='A', config=65535, tx_hz=5052632, tx_time_us=2**32+5, adc_delay_ns=3000)
+  const big = encodeLine(new Array(480).fill(5), {
+    sequence: 2 ** 32 - 1, element: 15, mode: 'A', config: 65535, txHz: 5052632, txTimeUs: 2 ** 32 + 5, adcDelayNs: 3000,
+  });
+  eq(big.length, 1012, 'firmware packet size');
+  eq(new DataView(big.buffer).getUint32(1008, true), 0x63354ba2, 'CRC of a full line');
+});
+
+test('usc4: the parser reads the Python packet, also one byte at a time', () => {
+  const [ev] = feedAll(new StreamParser(), PY_PACKET);
+  const { type, samples, count, ...fields } = ev;
+  eq([type, count, [...samples]], ['line', 4, [0, 1, 2047, 4095]]);
+  eq(fields, PY_FIELDS);
+  const p = new StreamParser();
+  const got = [];
+  for (const b of PY_PACKET) got.push(...p.feed(Uint8Array.of(b)));
+  eq(got.length, 1, 'byte at a time');
+});
+
+test('usc4: status lines and lines mixed with junk, split anywhere; bad CRC skipped', () => {
+  const st = new TextEncoder().encode('#st=0 f=2 prf=100 el=15 mode=A cfg=3 seq=12 skip=1 txerr=0 fault=12 hse=25 late=0\n');
+  const bad = PY_PACKET.slice();
+  bad[bad.length - 1] ^= 0xff;
+  const stream = Uint8Array.from([0x00, 0x23, 0x21, 0x55, 0x53, ...bad, ...st, ...PY_PACKET, 0x23, 0x0a, ...st, ...PY_PACKET]);
+  for (const cut of [1, 7, 61, 200]) {
+    const p = new StreamParser();
+    const got = [];
+    for (let i = 0; i < stream.length; i += cut) got.push(...p.feed(stream.subarray(i, i + cut)));
+    eq(got.map((e) => e.type), ['status', 'line', 'status', 'line'], `chunks of ${cut}`);
+    if (p.badCrc < 1) throw new Error('bad CRC not counted');
+    eq(p.buf.length, 0, 'nothing left over');
+  }
+  const s = parseStatus(new TextDecoder().decode(st).trim());
+  eq(s, { st: 0, f: 2, prf: 100, el: 15, mode: 'A', cfg: 3, seq: 12, skip: 1, txerr: 0, fault: 0x12, hse: 25, late: 0 });
+  eq(faultNames(s.fault), ['ADC 시작 실패', '버스트 안 나감']);
+  eq(parseStatus('#hello'), null);
+});
+
+test('usc4: command bytes, PRF limits, peak after the first 40 samples, time and depth', () => {
+  eq([...CMD.prf(1000)], [0x50, 3, 232]);
+  eq([...CMD.freq(2)], [0x46, 2]);
+  eq([...CMD.element(15)], [0x45, 15]);
+  eq([...CMD.stop(), ...CMD.shot(), ...CMD.arm(), ...CMD.sweep(), ...CMD.status()], [...'SXRT?'].map((c) => c.charCodeAt(0)));
+  eq([clampPrf(0), clampPrf('2500'), clampPrf('99.6'), clampPrf('x')], [1, 2000, 100, 1]);
+  const samples = new Array(480).fill(100);
+  samples[5] = 4000; // TX feedthrough: not the peak
+  samples[200] = 700;
+  const line = { samples, flags: 1, adcDelayNs: 6000, fsHz: 1600000 };
+  eq(lineStats(line), { peak: 700, at: 200, min: 100, mean: (478 * 100 + 4000 + 700) / 480, sat: true });
+  if (!near(sampleUs(line, 1), 6.625)) throw new Error('time');
+  if (!near(depthMm(line, 0), 4.44)) throw new Error('depth (as usc4.py: 6 µs at 1480 m/s = 4.44 mm)');
+  eq(lineCsv({ ...line, samples: [1, 2] }).split('\r\n').slice(0, 2), ['sample,time_us,depth_mm,code', '0,6.0000,4.440,1']);
+  eq(FREQ_HZ.length, 8);
 });
 
 // ---- boards

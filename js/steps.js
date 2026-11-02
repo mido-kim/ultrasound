@@ -10,8 +10,11 @@
 //                              (any number of values in one field; all must fit;
 //                              abs: true compares the size, ignoring the sign)
 //   rec   true                 record-only: the value is written down, no range
+//   how   ['…', …]             the "방법" list under a step: how to do it, one
+//                              line each; `x` shows as code (ASCII only)
 //
-// Keep the text short: what to look at, and what counts as OK.
+// Keep do and pass short: what to look at, and what counts as OK. The detail
+// goes in how. A stage's links are buttons under its intro.
 
 export const KINDS = {
   main: { name: '메인 보드 v5.4', short: '메인' },
@@ -61,11 +64,10 @@ export const STAGES = [
     title: '펌웨어 올리기',
     meta: 'VND042 연결 · HV는 0 V로 묶음',
     kinds: ['main'],
-    setup: [['on', 'VND042 ↔ J1 · J2'], ['off', 'J2 벤치 전원 뺌'], ['hv', 'J3 단락 플러그 (1 · 2 · 3 묶음)'], ['off', 'HV 보드 연결 안 함'], ['off', 'R702 · 어레이 없음']],
+    intro: '노트북으로 펌웨어를 올리고, 펌웨어 콘솔로 명령을 보내며 송신 허가 · 드라이버 · MUX · ADC를 차례로 봐요. 처음이면 아래 ①–③부터 펼쳐 보세요. 줄마다 "방법"을 누르면 자세한 순서가 나와요.',
+    links: [['#/console', '펌웨어 콘솔 열기']],
+    setup: [['on', 'VND042 ↔ J1 · J2'], ['off', 'J2 벤치 전원 뺌'], ['hv', 'J3 단락 플러그 (1 · 2 · 3 묶음)'], ['off', 'SW201 열림 (D201 꺼짐)'], ['off', 'HV 보드 연결 안 함'], ['off', 'R702 · 어레이 없음']],
     notes: [{
-      tone: 'warn', tag: '먼저',
-      text: '펌웨어는 firmware/us_control_v5_fw 폴더에 있어요. 빌드는 되지만 보드에선 아직 안 돌려봤어요. 노트북에 깔 것은 보드 지도 · 표 → 노트북 준비, 배선은 그 폴더 README에.',
-    }, {
       tone: 'info', tag: 'J3 단락 플러그',
       text: 'J3의 1 · 2 · 3번을 한 선으로 묶은 플러그를 꽂아 ±HV를 GND에 고정해요. 이 상태에서만 게이트 파형(TP701 · TP703)을 일반 프로브로 봐요.',
     }],
@@ -175,30 +177,209 @@ export const STEPS = [
   { id: 'm3.lna1in', stage: 3, kind: 'main', group: '수신 회로', do: '큰 입력에서 TP602 (LNA1_IN) 최고 · 최저', pass: '0.1 – 3.1 V', spec: V(0.1, 3.1) },
 
   // ---------------------------------------------------------------- 4 · main + firmware
-  { id: 'm4.dfu', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'BOOT0 누른 채 USB → 펌웨어 쓰기 → USB 다시 꽂기', pass: '새 COM 포트가 생김 (장치 관리자 → 포트)' },
-  { id: 'm4.status', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: '터미널에 ?', pass: '#st=0 … fault=0' },
-  { id: 'm4.vnd5', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'VND042 5 V (J2-1)', pass: '4.75 – 5.25 V', spec: V(4.75, 5.25) },
-  { id: 'm4.idle', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'J1-1 · J1-2: 리셋 직후, USB 다시 꽂은 뒤, S 보낸 뒤', pass: '모두 < 0.3 V', spec: V(undefined, 0.3) },
-  { id: 'm4.nopulse', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'TP401 · TP402 스코프, 리셋 반복', pass: 'ARM 없이 펄스 없음, INB는 HIGH' },
-  { id: 'm4.shot', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'X → ? (R은 계속 쏘기라서 안 씀)', pass: 'seq 1 증가, 상태 0으로 돌아옴' },
-  { id: 'm4.lock', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'ARM 상태에서 SW201 열기, TP403', pass: '바로 LOW. 지연 기록' },
-  { id: 'm4.lockfw', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'SW201 연 채 R · X 여러 번', pass: 'TP403 한 번도 안 올라감' },
-  { id: 'm4.window', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'J1-2 (TX_WINDOW) 펄스 폭', pass: '버스트보다 길고 다음 펄스 전에 내려감', rec: true },
-  { id: 'm4.outa', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OE = 0일 때 OUTA (C413 위 패드)', pass: '약 +5 V', spec: V(4.5, 5.5) },
-  { id: 'm4.outb', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OE = 0일 때 OUTB (C414 위 패드)', pass: '약 −5 V', spec: V(-5.5, -4.5) },
-  { id: 'm4.freq', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'SW201 닫고 ARM, F 0–7마다 X → OUTA 주기', pass: '1 / 3 / 3.84 / 4 / 4.8 / 5.053 / 6.857 / 8 MHz ±1 %' },
-  { id: 'm4.cycles', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '버스트 사이클 수', pass: '정확히 3' },
-  { id: 'm4.overlap', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OUTA · OUTB 같이 보기', pass: '겹치는 순간 없음. 보이면 바로 멈추기' },
-  { id: 'm4.dead', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '둘 다 꺼진 구간 (dead time) 폭', pass: '구간 있음. 폭 기록', rec: true },
-  { id: 'm4.edge', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '8 MHz 상승시간, ±5 V 리플 · 전류', pass: '목표 10 ns 이하. 고전압 경로의 기준값', rec: true },
-  { id: 'm4.open', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: 'CLR 뒤 TP706 ↔ EL 핀 16개', pass: '모두 끊김' },
-  { id: 'm4.sweep', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: 'T 명령 (0.4초 간격 스윕)', pass: 'EL0 → EL15 하나씩만 연결' },
-  { id: 'm4.ron', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '연결됐을 때 저항', pass: '8 – 20 Ω (리드 포함)', spec: { unit: 'Ω', min: 8, max: 20 } },
-  { id: 'm4.spi', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: 'J1-7 (SCK) · J1-9 (LE) · J1-10 (CLR) 스코프', pass: '16클럭 MSB 먼저, LE LOW ≥ 5 ns, CLR ≥ 115 ns' },
-  { id: 'm4.cbus', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '(LCR 있으면) TP706 ↔ GND 용량', pass: '약 200 pF', rec: true },
-  { id: 'm4.storm', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: 'E 연속 전송', pass: '송수신 중엔 채널 안 바뀜, skip만 늘어남' },
-  { id: 'm4.code', stage: 4, kind: 'main', group: 'ADC까지 (J3 단락 플러그 그대로)', do: 'AFG 5 mV → TP601, SW201 닫고 R + X → ADC 코드', pass: '300 – 800', spec: { unit: '', min: 300, max: 800 } },
-  { id: 'm4.sat', stage: 4, kind: 'main', group: 'ADC까지 (J3 단락 플러그 그대로)', do: '입력 10배', pass: '뷰어에 SAT 표시' },
+  {
+    id: 'm4.dfu', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'BOOT0 누른 채 USB → 펌웨어 쓰기 → USB 다시 꽂기', pass: '새 COM 포트가 생김 (장치 관리자 → 포트)',
+    how: [
+      '처음 한 번: ② 노트북 준비대로 설치',
+      'BOOT0 누른 채 VND042 USB를 노트북에 꽂고 BOOT0 떼기',
+      '처음 한 번: Zadig에서 STM32 BOOTLOADER → WinUSB → Install Driver',
+      '`us_control_v5_fw` 폴더의 PowerShell에서 `python -m platformio run -t upload`',
+      '끝나면 USB를 뽑았다 다시 꽂기 → 장치 관리자 → 포트에 새 COM 포트 (USB 직렬 장치)',
+    ],
+  },
+  {
+    id: 'm4.status', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: '콘솔 연결 (터미널이면 ?)', pass: '정지 (st=0), 고장 없음 (fault=0)',
+    how: [
+      '노트북 Chrome · Edge에서 펌웨어 콘솔 → 연결 → USB 직렬 장치 고르기',
+      '상태 칸이 정지, 고장 없음이면 OK. 터미널이면 `?` 치고 `#st=0 ... fault=0` 한 줄',
+      '크리스털 (hse)도 봐요. 0이 아닌 숫자 (MHz)면 OK. 0이면 USB가 불안할 수 있어요',
+    ],
+  },
+  {
+    id: 'm4.vnd5', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'VND042 5 V (J2-1)', pass: '4.75 – 5.25 V', spec: V(4.75, 5.25),
+    how: [
+      '벤치 전원 없이 USB로만 켠 상태',
+      '멀티미터 DC V: 검은 리드 J2-2 (GND), 빨간 리드 J2-1',
+      '4.75 V 아래면 다른 USB 포트 · 케이블로도 재서 함께 기록',
+    ],
+  },
+  {
+    id: 'm4.idle', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'J1-1 · J1-2: 리셋 직후, USB 다시 꽂은 뒤, 정지 (S) 뒤', pass: '모두 < 0.3 V', spec: V(undefined, 0.3),
+    how: [
+      '멀티미터 DC V: 검은 리드 J1-3 (GND), 빨간 리드 J1-1, 다음에 J1-2',
+      '① VND042 리셋 버튼 (NRST) 눌렀다 뗀 직후',
+      '② USB 뽑았다 다시 꽂은 뒤',
+      '③ 콘솔 정지 (S) 누른 뒤',
+      '세 경우 모두 두 핀이 0.3 V 아래면 OK. 리셋하면 콘솔이 끊겨요: 다시 연결',
+    ],
+  },
+  {
+    id: 'm4.nopulse', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: 'TP401 · TP402 스코프, 리셋 반복', pass: 'ARM 없이 펄스 없음, INB는 HIGH',
+    how: [
+      '스코프 CH1 = TP401 (INA), CH2 = TP402 (INB). 노멀 트리거, CH1 상승 1.5 V',
+      'VND042 리셋 (NRST)을 여러 번, USB도 뽑았다 꽂기',
+      '트리거가 한 번도 안 걸리면 OK. INB는 계속 HIGH (약 3.3 V), INA는 LOW',
+    ],
+  },
+  {
+    id: 'm4.shot', stage: 4, kind: 'main', group: 'MCU · 펌웨어', do: '콘솔 단발 (X)', pass: 'seq 1 증가, 상태 0으로 돌아옴',
+    how: [
+      '콘솔에서 단발. SW201은 열려 있어도 돼요 (펄스만 막히고 수신은 해요)',
+      '보낸 줄 seq가 1 늘고, 상태가 다시 정지면 OK',
+      '받은 줄 그래프도 새로 그려져요',
+    ],
+  },
+  {
+    id: 'm4.lock', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: '연속 송신 중에 SW201 열기, TP403', pass: 'TP403 펄스가 바로 사라짐. 지연 기록',
+    how: [
+      'SW201 닫기 (D201 켜짐). 콘솔 PRF 100 Hz 적용 → 연속 (두 번 눌러 시작)',
+      '스코프 CH1 = TP403 (OE), 노멀 트리거 상승 1.5 V: 10 ms마다 짧은 펄스',
+      'SW201 열기 (D201 꺼짐) → TP403 펄스가 바로 사라지면 OK',
+      '지연: CH2 = SW201에서 열면 0 V가 되는 쪽 핀 (PGOOD), CH2 하강 트리거. 펄스 도중에 열렸을 때만 TP403이 같이 떨어지는 게 보여요 (수 ns). 못 잡으면 "사라짐"만 기록',
+      '끝나면 정지 (S)',
+    ],
+  },
+  {
+    id: 'm4.lockfw', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'SW201 연 채 단발 · 연속 여러 번', pass: 'TP403 한 번도 안 올라감',
+    how: [
+      'SW201 연 채 (D201 꺼짐)',
+      '스코프 CH1 = TP403, 싱글 트리거 상승 1.5 V',
+      '콘솔에서 단발 여러 번, 연속도 몇 초 → 트리거가 한 번도 안 걸리면 OK',
+      'TP401 · TP402에는 펄스가 보여도 정상이에요 (막히는 건 MD1213 출력)',
+      '끝나면 정지 (S)',
+    ],
+  },
+  {
+    id: 'm4.window', stage: 4, kind: 'main', group: '송신 허가 (펌웨어)', do: 'J1-2 (TX_WINDOW) 펄스 폭', pass: '버스트보다 길고 다음 펄스 전에 내려감', rec: true,
+    how: [
+      '스코프 CH1 = J1-2 (TX_WINDOW), CH2 = TP401 (INA). 콘솔 PRF 100 Hz → 연속',
+      'WINDOW가 먼저 올라가고, 그 끝쪽에 버스트, 버스트가 끝나면 WINDOW가 내려가요 (⑥ 타이밍)',
+      '폭을 재서 기록 (1 MHz · 8 MHz). 다음 펄스 (10 ms 뒤) 전에 내려가 있으면 OK',
+      'SW201은 열어 둬도 돼요. 끝나면 정지 (S)',
+    ],
+  },
+  {
+    id: 'm4.outa', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OE = 0일 때 OUTA (C413 위 패드)', pass: '약 +5 V', spec: V(4.5, 5.5),
+    how: [
+      '정지 상태 (ARM 없음 → OE = 0)',
+      '멀티미터 DC V: 검은 리드 TP707 (GND), 빨간 리드 C413 위쪽 패드',
+      '아래쪽 패드는 결합 커패시터 뒤라 DC가 없어요',
+    ],
+  },
+  {
+    id: 'm4.outb', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OE = 0일 때 OUTB (C414 위 패드)', pass: '약 −5 V', spec: V(-5.5, -4.5),
+    how: ['같은 상태에서 빨간 리드를 C414 위쪽 패드로'],
+  },
+  {
+    id: 'm4.freq', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'SW201 닫고 주파수 8개마다 OUTA 주기', pass: '1 / 3 / 3.84 / 4 / 4.8 / 5.053 / 6.857 / 8 MHz ±1 %',
+    how: [
+      'SW201 닫기 (D201 켜짐)',
+      '스코프 CH1 = C413 위쪽 패드 (OUTA), 노멀 트리거. 콘솔 PRF 10 Hz → 연속',
+      '콘솔에서 주파수를 하나씩 고르면 다음 송신부터 바뀌어요',
+      '3사이클의 주기를 재서 주파수로 바꿔 비교. 8개 모두 ±1 % 안',
+      '끝나면 정지 (S), SW201 열기',
+    ],
+  },
+  {
+    id: 'm4.cycles', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '버스트 사이클 수', pass: '정확히 3',
+    how: ['같은 화면에서 버스트 하나의 사이클을 세요'],
+  },
+  {
+    id: 'm4.overlap', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: 'OUTA · OUTB 같이 보기', pass: '겹치는 순간 없음. 보이면 바로 멈추기',
+    how: [
+      'SW201 닫고 연속. CH1 = C413 위 (OUTA), CH2 = C414 위 (OUTB), 같은 시간축',
+      '두 FET가 같이 켜지는 순간 = OUTA −5 V 이면서 OUTB +5 V. 한 번이라도 보이면 바로 Esc (정지)',
+      '1 MHz와 8 MHz에서 확인',
+    ],
+  },
+  {
+    id: 'm4.dead', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '둘 다 꺼진 구간 (dead time) 폭', pass: '구간 있음. 폭 기록', rec: true,
+    how: [
+      '전환 순간을 확대 (20–50 ns/div)',
+      '둘 다 꺼진 구간 = OUTA +5 V 이면서 OUTB −5 V. 그 폭을 기록',
+      '펌웨어 설정은 약 52 ns. 6.857 · 8 MHz에서는 실제로 미는 시간이 짧아져요 (⑦)',
+    ],
+  },
+  {
+    id: 'm4.edge', stage: 4, kind: 'main', group: 'MD1213 드라이버 (J3 단락 플러그)', do: '8 MHz 상승시간, ±5 V 리플 · 전류', pass: '목표 10 ns 이하. 고전압 경로의 기준값', rec: true,
+    how: [
+      '주파수 8.000, PRF 100 Hz 연속',
+      'OUTA 상승시간 10 → 90 % (목표 10 ns 이하)',
+      '버스트 중 +5 V (J2-1) · −5 V (C304 패드) 흔들림: 스코프 AC 결합 p-p',
+      '(전류 프로브가 있으면) 5 V 전류 피크',
+      '다 기록해 둬요. 고전압 단계의 기준이에요. 끝나면 정지 (S), SW201 열기',
+    ],
+  },
+  {
+    id: 'm4.open', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '리셋 직후 TP706 ↔ EL 핀 16개', pass: '모두 끊김',
+    how: [
+      'VND042 리셋 (NRST) 직후: 펌웨어가 켜질 때 CLR로 16개 스위치를 다 열어요',
+      '멀티미터 저항: TP706 (BUS) ↔ J1001 홀수 핀 (EL0 = 1번 … EL15 = 31번)',
+      '16개 모두 OL (끊김)이면 OK',
+      '리셋하면 콘솔이 끊겨요. 다 재고 다시 연결',
+    ],
+  },
+  {
+    id: 'm4.sweep', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '콘솔 MUX 스윕 (T, 0.4초 간격)', pass: 'EL0 → EL15 하나씩만 연결',
+    how: [
+      '정지 상태에서 MUX 스윕: EL0 → EL15 0.4초씩, 끝나면 모두 열림 (6.4초)',
+      '멀티미터 도통 (삐) 모드로 TP706과 EL n 핀을 물고 스윕 → 그 소자 차례 (시작 n × 0.4초 뒤)에만 삐',
+      'EL0 · EL1 · EL8 · EL15 정도 확인. 삐 하는 때가 차례와 다르거나 두 번 울리면 SPI 순서 문제',
+      '스윕 중에는 상태 답이 6초쯤 늦어요',
+    ],
+  },
+  {
+    id: 'm4.ron', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '연결됐을 때 저항', pass: '8 – 20 Ω (리드 포함)', spec: { unit: 'Ω', min: 8, max: 20 },
+    how: [
+      'SW201 연 채 콘솔에서 소자 n 고르고 단발 → MUX가 EL n에 이어진 채로 남아요 (펄스는 SW201이 막아요)',
+      '멀티미터 저항 TP706 ↔ EL n 핀',
+      '리드끼리 맞댄 값 (리드 저항)도 메모에 적어 둬요',
+    ],
+  },
+  {
+    id: 'm4.spi', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: 'J1-7 (SCK) · J1-9 (LE) · J1-10 (CLR) 스코프', pass: '16클럭 MSB 먼저, LE LOW ≥ 5 ns, CLR ≥ 115 ns',
+    how: [
+      '스코프 CH1 = J1-7 (SCK), CH2 = J1-9 (LE), 싱글 트리거 CH2 하강',
+      '콘솔에서 지금과 다른 소자 고르고 단발 → SPI 한 번: 클럭 16개 (6 MHz), 위 바이트 먼저, 끝나고 LE가 잠깐 LOW',
+      'EL n이면 16비트 중 n번 비트만 1이에요',
+      'CLR (J1-10)은 켜질 때 한 번: CH1 = J1-10, 상승 트리거 → 리셋 (NRST) → 약 1 ms HIGH',
+    ],
+  },
+  {
+    id: 'm4.cbus', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '(LCR 있으면) TP706 ↔ GND 용량', pass: '약 200 pF', rec: true,
+    how: [
+      '리셋 직후 (모두 열림) TP706 ↔ TP707 용량: 약 180 pF (16 × 11 pF)',
+      '소자 하나를 단발로 이은 뒤: 약 200 pF (15 × 11 + 33 pF)',
+      '고전압 단계에서 감도 계산에 써요',
+    ],
+  },
+  {
+    id: 'm4.storm', stage: 4, kind: 'main', group: 'MAX14866 MUX', do: '연속 송신 중 소자 빠르게 바꾸기', pass: '줄 중간엔 안 바뀜, 고장 없음',
+    how: [
+      '콘솔 PRF 100 Hz → 연속, 소자 버튼을 빠르게 여러 번',
+      '받은 줄의 소자 번호가 마지막으로 고른 값으로 바뀌고, 고장 없음 · late 0 그대로면 OK',
+      '펌웨어는 소자를 줄 사이에만 바꾸고, 바꿀 때마다 한 번 쉬어요 (채널 안정). 그래서 줄 수만 조금 줄고 skip은 거의 안 늘어요',
+      '끝나면 정지 (S)',
+    ],
+  },
+  {
+    id: 'm4.code', stage: 4, kind: 'main', group: 'ADC까지 (J3 단락 플러그 그대로)', do: 'AFG 5 mVpp 버스트 → TP601, 콘솔 최고 코드', pass: '300 – 800', spec: { unit: '', min: 300, max: 800 },
+    how: [
+      'AFG: 3.84 MHz 3사이클 버스트, 5 mVpp → TP601 (GND는 TP707). J601은 3.84 MHz에 맞춘 그대로',
+      'AFG 트리거: 외부, J1-2 (TX_WINDOW) 상승, 지연 150 µs → 받은 줄 가운데쯤에 펄스',
+      'SW201 닫고, 콘솔 주파수 3.840 · PRF 10 Hz → 연속',
+      '콘솔의 최고 코드가 300–800이고 4095에 안 붙으면 OK. 그 값을 기록',
+      '끝나면 정지 (S), SW201 열기',
+    ],
+  },
+  {
+    id: 'm4.sat', stage: 4, kind: 'main', group: 'ADC까지 (J3 단락 플러그 그대로)', do: '입력 10배', pass: '콘솔에 SAT 표시',
+    how: [
+      'AFG를 10배 (50 mVpp)로',
+      '콘솔에 SAT (빨강), 최고 코드 4090 이상이면 OK',
+      '다시 5 mVpp로 돌리면 SAT가 꺼져요',
+    ],
+  },
 
   // ---------------------------------------------------------------- 5 · system bench HV
   { id: 'x5.r1', stage: 5, kind: 'system', group: '전압 올리는 순서', do: '1단: ±5 V · 100 pF · 1 MHz', pass: '아래 측정 다 통과하면 다음 단', rec: true },

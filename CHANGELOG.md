@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.0 — 2026-11-02
+
+- **펌웨어 콘솔** (`#/console`, button on 회로 보드 검증 and in stage 4): one
+  window for the board instead of a terminal plus viewer_v5.py, which can't
+  share the COM port. Web Serial in Chrome or Edge on a computer. Buttons
+  for 단발 X, 연속 R (second press within 3 s starts it), 정지 S (also Esc,
+  from any page), MUX 스윕 T, frequency, element, PRF and mode; the status
+  line read every second and shown as tiles (fault bits named, settings not
+  applied yet marked "다음 송신 때 적용"); the received line drawn (A: ADC
+  code over µs or mm, the firmware's peak after the first 40 samples, SAT;
+  M and B as grey pictures), saved as CSV; a log of what was sent and
+  answered. Connecting sends S first. `js/usc4.js` reads the firmware's
+  stream (checked byte for byte against host/usc4.py); on localhost `?dev`
+  a pretend board (`js/sim-device.js`) stands in.
+- Stage 4 (펌웨어 올리기) explained on the page: seven folding parts (wiring,
+  laptop and upload, the console, commands and status fields, SW201, the
+  timing of one line, what to check on the scope) and a 방법 list under
+  every step. Step texts use the console. 4-22 (소자 빠르게 바꾸기) passes
+  when lines never change element mid-line and no fault shows: the firmware
+  changes the MUX only between lines and pauses one tick per change, so
+  skip barely moves. Step ids unchanged.
+- 노트북 준비 adds Chrome or Edge and the console; the terminal and viewer
+  are listed as the other ways.
+
 ## 0.7.6 — 2026-10-31
 
 - 보드 지도 · 표: new section 노트북 준비 (Windows). What to install

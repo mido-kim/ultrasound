@@ -79,6 +79,21 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   a folder tree for the user to drag into Drive.
 - `js/dev-store.js`: in-memory store with files; `http://localhost:5174/?dev`
   tries every file screen without Firebase. Use it to test file features.
+- `js/console.js`: 펌웨어 콘솔 (`#/console`). Module state `con` (link,
+  status, lines, log) outlives the page; `consolePage()` is drawn by render(),
+  `mountConsole()` runs after it, and everything live is painted in place
+  (never render()). Esc sends S from any page while connected. Settings the
+  firmware hasn't applied yet (it applies them at the next shot) show as
+  "다음 송신 때 적용". `js/device.js`: Web Serial link (VID 0483:5740, writes
+  queued; `?dev` on localhost uses `js/sim-device.js`, a pretend board that
+  keeps the firmware's rules). `js/usc4.js`: the firmware's USB stream (USC4
+  packets + "#st=" status lines), command bytes, CRC: same bytes as
+  `../host/usc4.py` and `../firmware/us_control_v5_fw/src/main.c`; tests.js
+  holds Python-made vectors. Change them together with the firmware.
+- `js/fw-guide.js`: stage 4's folding parts (`STAGE_DETAIL`), shown by
+  `stageSection`; steps can have `how` (the 방法 list) and stages `links`.
+  Which folds are open lives in `openDetails` in main.js (kept across
+  redraws).
 - `js/guide.js`: board reference HTML (maps, tables, power order, symptoms,
   open questions), shortened from `../us_control_v5.4_pcb_bringup_guide.html`.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from

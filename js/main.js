@@ -10,6 +10,8 @@ import {
   MEMO_COLORS, MEMO_MAX, ROOT, SEED_FOLDERS, childrenOf, deleteFolderOps, descendantsOf, memoHtml, memoOffset, memoPoint,
   memoText, nextOrder, paintRuns, placesFor, runsOf, sanitizeMemo,
 } from './folders.js';
+import { consoleAction, consoleChange, consolePage, mountConsole } from './console.js';
+import { STAGE_DETAIL } from './fw-guide.js';
 import { GUIDE_HTML } from './guide.js';
 import { homeImages, homeLink, homeRecord, moved, withImage } from './home.js';
 import { describeSpec, judge } from './judge.js';
@@ -139,10 +141,12 @@ function toast(text) {
 
 // '#/' home · '#/boards' · '#/b/<id>[/<stage n>]' one board · '#/guide' ·
 // '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/p/array/designs' design files ·
-// '#/r/<id>' one run · '#/meetings' meeting slides · '#/places' 자료 지도 · '#/settings'
+// '#/r/<id>' one run · '#/meetings' meeting slides · '#/places' 자료 지도 · '#/settings' ·
+// '#/console' 펌웨어 콘솔
 function route() {
   const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (a === 'boards') return { view: 'boards' };
+  if (a === 'console') return { view: 'console' };
   if (a === 'meetings') return { view: 'meetings' };
   if (a === 'places') return { view: 'places' };
   if (a === 'b' && b) return { view: 'board', targetId: decodeURIComponent(b), stage: c !== undefined ? Number(c) : null };
@@ -187,9 +191,11 @@ function render(newPage = false) {
   const pages = {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
     edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, places: placesPage, settings: settingsPage, home: homePage,
+    console: consolePage,
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
   hydrateFiles();
+  if (r.view === 'console') mountConsole();
   if (newPage) {
     scrollTo(0, 0);
     return;
@@ -607,7 +613,7 @@ function boardsPage() {
   </div>`;
   const head = `<div class="page-head">
     ${back('#/', '홈')}
-    <div class="row"><h1>회로 보드 검증</h1><span class="spacer"></span><a class="btn" href="#/guide">보드 지도 · 표</a></div>
+    <div class="row"><h1>회로 보드 검증</h1><span class="spacer"></span><a class="btn" href="#/console">펌웨어 콘솔</a><a class="btn" href="#/guide">보드 지도 · 표</a></div>
   </div>`;
   if (!list.length) {
     return `${head}
@@ -700,6 +706,10 @@ function stageSection(b, s) {
       ${s.n >= 2 ? '<p class="small">전압은 앞 단계가 다 통과했을 때만 올려요.</p>' : ''}</div>` : '';
   const setup = s.setup ? `<div class="setup"><span class="lbl">준비</span><div class="chips">${s.setup.map(([c, t]) => `<span class="chip ${c}">${esc(t)}</span>`).join('')}</div></div>` : '';
   const notes = (s.notes || []).map((n) => `<div class="note ${n.tone}"><span class="tag">${esc(n.tag)}</span><p>${esc(n.text)}</p></div>`).join('');
+  const links = s.links ? `<div class="row">${s.links.map(([href, label]) => `<a class="btn primary" href="${href}">${esc(label)}</a>`).join('')}</div>` : '';
+  const detail = STAGE_DETAIL[s.n]
+    ? `<div class="sd-list">${STAGE_DETAIL[s.n].map((d) => `<details class="sd" data-key="${d.key}"${openDetails.has(d.key) ? ' open' : ''}>
+        <summary>${esc(d.title)}</summary><div class="sd-body">${d.html}</div></details>`).join('')}</div>` : '';
   let html = '';
   let group = null;
   let open = false;
@@ -714,7 +724,7 @@ function stageSection(b, s) {
     html += checkRow({
       id: st.id, no: st.no, title: st.do, sub: st.pass, subLabel: st.rec ? '기록' : '기준', subTone: st.rec ? 'rec' : '',
       field: st.spec || st.rec ? { placeholder: st.spec ? '측정값' : '기록', unit: st.spec?.unit } : null,
-      judgeStep: st.spec ? st : null, result: resultOf(state.results, b.id, st.id) || {}, labels: BOARD_LABELS,
+      judgeStep: st.spec ? st : null, result: resultOf(state.results, b.id, st.id) || {}, labels: BOARD_LABELS, how: st.how,
     });
   }
   if (open) html += '</div>';
@@ -723,14 +733,20 @@ function stageSection(b, s) {
     <div class="stage-head"><span class="num-label">단계 ${s.shown}</span><h2 id="stage-title">${esc(s.title)}</h2><span class="meta">${esc(s.meta)}</span></div>
     ${gateBanner}
     ${s.intro ? `<p>${esc(s.intro)}</p>` : ''}
+    ${links}
     ${setup}
     ${notes}
+    ${detail}
     ${html}
   </section>`;
 }
 
+// Folded parts (stage detail, a step's 방법) that are open: kept across redraws.
+const openDetails = new Set();
+const howLine = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+
 // One line of a checklist, for a board step or a run step.
-function checkRow({ id, no, title, sub, subLabel = '', subTone = '', field, judgeStep, result: r, labels, removed }) {
+function checkRow({ id, no, title, sub, subLabel = '', subTone = '', field, judgeStep, result: r, labels, removed, how }) {
   const vid = `v-${id}`;
   const nid = `n-${id}`;
   const value = drafts.has(vid) ? drafts.get(vid) : r.value || '';
@@ -747,6 +763,8 @@ function checkRow({ id, no, title, sub, subLabel = '', subTone = '', field, judg
     <div class="what">
       <div class="do">${title ? esc(title) : '<span class="muted">(제목 없음)</span>'}${removed ? ' <span class="chip off">프로토콜에서 뺀 단계</span>' : ''}</div>
       ${sub ? `<div class="crit">${subLabel ? `<b class="${subTone}">${subLabel}</b>` : ''}${esc(sub)}</div>` : ''}
+      ${how?.length ? `<details class="how" data-key="how-${esc(id)}"${openDetails.has(`how-${id}`) ? ' open' : ''}><summary>방법</summary>
+        <ol>${how.map((x) => `<li>${howLine(x)}</li>`).join('')}</ol></details>` : ''}
     </div>
     <div class="ctl">
       ${valueField}
@@ -1302,6 +1320,11 @@ function wireEvents() {
     if (e.target.closest('button') && field?.matches?.('input[data-field], input[data-pe], textarea[data-note-for]')) e.preventDefault();
   });
   app.addEventListener('click', onClick);
+  // 'toggle' doesn't bubble: listen while it goes down.
+  app.addEventListener('toggle', (e) => {
+    const key = e.target.dataset?.key;
+    if (key) e.target.open ? openDetails.add(key) : openDetails.delete(key);
+  }, true);
   app.addEventListener('input', (e) => {
     const t = e.target;
     if (t.dataset?.pe && t.type !== 'checkbox') {
@@ -1331,6 +1354,7 @@ function wireEvents() {
   });
   app.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id?.startsWith('con-')) return consoleChange(t);
     if (t.dataset?.pe === 'value') {
       editField(t.dataset.id, 'value', t.checked);
       saveProto();
@@ -1391,6 +1415,7 @@ function onClick(e) {
   const act = el?.dataset.act;
   if (!act) return;
   if (act.startsWith('pe-')) return editAction(act, el);
+  if (act.startsWith('con-')) return consoleAction(act, el);
   switch (act) {
     case 'add-board': return addBoard(el.dataset.kind);
     case 'add-system': return boardDialog(null);

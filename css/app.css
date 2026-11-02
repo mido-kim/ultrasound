@@ -251,6 +251,18 @@ a.card:hover { border-color: var(--accent); }
 .seg button[aria-pressed="true"][data-s="skip"] { background: var(--muted); color: var(--surface); }
 .note-in, .small-in { font-size: 13px !important; padding: 6px 8px !important; }
 
+/* a stage explained in folding parts (fw-guide.js), and a step's 방법 list */
+.sd-list { display: grid; gap: 8px; }
+details.sd { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+details.sd > summary { cursor: pointer; padding: 10px 14px; font-weight: 600; }
+details.sd[open] > summary { border-bottom: 1px solid var(--line); }
+.sd-body { display: grid; gap: 12px; padding: 12px 14px 14px; min-width: 0; }
+.sd-body h3 { margin-top: 4px; }
+details.how { font-size: 13.5px; }
+details.how > summary { cursor: pointer; color: var(--accent); font-size: 13px; width: max-content; }
+details.how ol { margin-top: 6px; display: grid; gap: 3px; padding-left: 1.4em; }
+details.how li + li { margin-top: 0; }
+
 /* ---------------------------------------------------------------- home: pictures, 메모판, 목차; meeting slides */
 /* slides and drawings have a white page, so they sit on white in both themes */
 .meeting-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
@@ -441,8 +453,8 @@ pre.cmd { margin: 6px 0 2px; padding: 8px 10px; background: var(--code-bg); bord
 .stack { display: grid; gap: 10px; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .two > * { min-width: 0; }
-.guide .stack { align-content: start; }
-.guide .stack > * { min-width: 0; }
+.guide .stack, .sd-body .stack { align-content: start; }
+.guide .stack > *, .sd-body .stack > * { min-width: 0; }
 .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
@@ -469,6 +481,59 @@ svg text.h { font-size: 10.5px; font-weight: 600; fill: var(--danger); }
 svg text.p1 { font-size: 9px; font-weight: 600; fill: var(--danger); }
 .guide-nav { display: flex; gap: 6px; flex-wrap: wrap; }
 .guide-nav a { font-size: 13px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--fg); background: var(--surface); }
+
+/* ---------------------------------------------------------------- 펌웨어 콘솔 */
+.con { display: grid; gap: 16px; }
+/* stays under the sticky top bar, so 정지 is always in reach */
+.con-bar {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 50px); z-index: 9;
+  display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+  padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+}
+.con-hint { min-width: 0; }
+.con-grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 880px) { .con-grid { grid-template-columns: minmax(0, 1fr); } }
+.con-col { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.con-panel { display: grid; gap: 12px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.con-panel h2 { font-size: 15px; }
+.con-state { font-size: 22px; font-weight: 700; color: var(--accent); }
+.con-state.st-0 { color: var(--muted); }
+.con-state.st-3, .con-state.st-4 { color: var(--warn); }
+.con-state.st-5 { color: var(--danger); }
+.con-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.con-tile { display: grid; gap: 1px; align-content: start; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); min-width: 0; }
+.con-tile.wide { grid-column: 1 / -1; }
+.con-tile .k { font-size: 11.5px; color: var(--muted); }
+.con-tile .v { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.con-tile.warn { border-color: var(--warn); }
+.con-tile.warn .v { color: var(--warn); }
+.con-tile.bad { border-color: var(--danger); background: var(--danger-soft); }
+.con-tile.bad .v { color: var(--danger); }
+.con-row { display: grid; gap: 6px; }
+.con-row .lbl { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.con-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.con-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.con-seg.con-modes, .con-seg.con-axis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.con-seg.con-axis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.con-els { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.con-seg button, .con-els button { justify-content: center; padding: 7px 2px; font-family: var(--f-mono); font-size: 13px; }
+button.pick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.stop { background: var(--danger); border-color: var(--danger); color: var(--surface); font-weight: 700; padding-inline: 18px; }
+button.stop:hover { border-color: var(--fg); }
+button.arming { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+.key { font-family: var(--f-mono); font-size: 12px; padding: 0 5px; border: 1px solid currentColor; border-radius: 4px; opacity: 0.75; }
+.con input[type="number"] { font: inherit; font-family: var(--f-mono); font-size: 14px; width: 7.5em; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); }
+.con-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.con-plot-box { min-width: 0; }
+#con-plot { display: block; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.con-log { max-height: 280px; overflow: auto; display: grid; align-content: start; gap: 2px; font-size: 13px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.lg { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.lg .t { flex: none; font-size: 11.5px; color: var(--muted); }
+.lg .d { flex: none; color: var(--muted); }
+.lg.out .d, .lg.out .w { color: var(--accent); }
+.lg.info .w { color: var(--muted); }
+.lg .w { min-width: 0; overflow-wrap: anywhere; }
+.con-raw { display: flex; gap: 6px; }
 
 @media (prefers-reduced-motion: no-preference) {
   .step { transition: background-color 0.2s; }
