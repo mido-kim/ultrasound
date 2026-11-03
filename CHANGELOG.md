@@ -8,8 +8,13 @@
 - Stage 4 ③ says buttons are what to do and modes are which element and how
   it's shown; ④ explains the 8 frequencies, that T doesn't fire, and that a
   B picture takes 32 PRF ticks.
-- 노트북 준비 starts by saying the app and the console need no install (Chrome
-  or Edge); the installs are only for the laptop that uploads firmware.
+- 노트북 준비 starts by saying the app and the console need no install (sign
+  in with Chrome or Edge); the installs are only for the laptop that uploads
+  firmware.
+- 펌웨어 콘솔 opens only for a signed-in account, like the shared records. In
+  이 기기에서만 mode the page asks to sign in (로그인해서 같이 쓰기).
+- The console's numbers and log stay current while its window draws no
+  frames (minimised or hidden).
 
 ## 0.8.0 — 2026-11-02
 

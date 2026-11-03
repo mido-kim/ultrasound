@@ -6,7 +6,7 @@
 // The Windows laptop that builds and uploads the firmware. Also shown in
 // stage 4 (fw-guide.js).
 export const LAPTOP_HTML = `
-  <p>앱과 펌웨어 콘솔은 설치 없이 Chrome · Edge로 돼요. 아래 설치는 펌웨어를 올리는 노트북에만 필요해요. 깔 언어는 Python 하나고, 펌웨어(C) 컴파일러는 PlatformIO가 첫 빌드 때 알아서 받아요.</p>
+  <p>앱과 펌웨어 콘솔은 따로 설치할 게 없어요. Chrome · Edge에서 로그인해서 써요. 아래 설치는 펌웨어를 올리는 노트북에만 필요해요. 깔 언어는 Python 하나고, 펌웨어(C) 컴파일러는 PlatformIO가 첫 빌드 때 알아서 받아요.</p>
   <div class="two">
     <div class="stack">
       <h3>한 번만 설치</h3>

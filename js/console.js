@@ -49,17 +49,26 @@ const con = {
 
 // ---------------------------------------------------------------- page
 
-export function consolePage() {
-  const supported = hasSerial() || isDev();
-  const freqBtns = FREQ_LABELS.map((f, i) => `<button type="button" class="pick" data-act="con-freq" data-i="${i}">${f}</button>`).join('');
-  const elBtns = Array.from({ length: N_ELEM }, (_, e) => `<button type="button" class="pick" data-act="con-el" data-e="${e}">${e}</button>`).join('');
-  const modeBtns = ['A', 'M', 'B'].map((m) => `<button type="button" class="pick" data-act="con-mode" data-m="${m}">${m}</button>`).join('');
-  return `
+// signedIn: a signed-in account. In 이 기기에서만 (local) mode the console
+// stays closed, like the shared records: it asks to sign in instead.
+export function consolePage(signedIn = true) {
+  const head = `
   <div class="page-head">
     <a class="back" href="#/boards">← 회로 보드 검증</a>
     <h1>펌웨어 콘솔</h1>
     <p class="lede">VND042를 USB로 연결해서 버튼으로 명령을 보내고, 상태와 받은 줄을 한 화면에서 봐요. 터미널 · 뷰어 대신 써요.</p>
-  </div>
+  </div>`;
+  if (!signedIn) {
+    return `${head}
+    <div class="empty"><h2>로그인해야 써요</h2>
+      <p>펌웨어 콘솔은 로그인한 계정에서만 열려요.</p>
+      <button type="button" class="primary" data-act="use-cloud">로그인해서 같이 쓰기</button></div>`;
+  }
+  const supported = hasSerial() || isDev();
+  const freqBtns = FREQ_LABELS.map((f, i) => `<button type="button" class="pick" data-act="con-freq" data-i="${i}">${f}</button>`).join('');
+  const elBtns = Array.from({ length: N_ELEM }, (_, e) => `<button type="button" class="pick" data-act="con-el" data-e="${e}">${e}</button>`).join('');
+  const modeBtns = ['A', 'M', 'B'].map((m) => `<button type="button" class="pick" data-act="con-mode" data-m="${m}">${m}</button>`).join('');
+  return `${head}
   ${supported ? '' : `<div class="banner warn"><b>이 브라우저는 USB 시리얼을 못 써요</b>
     <p>노트북에서 Chrome이나 Edge로 이 페이지를 열어 주세요. 휴대폰 · Safari · Firefox는 안 돼요.</p></div>`}
   <div class="con" id="con-root">
@@ -197,14 +206,19 @@ function logHtml() {
 
 // ---------------------------------------------------------------- painting
 
+// Once per frame; the timer covers a window that draws no frames (minimised
+// or hidden), so what's on the page never falls behind.
 let paintQueued = false;
 function schedulePaint() {
   if (paintQueued) return;
   paintQueued = true;
-  requestAnimationFrame(() => {
+  const run = () => {
+    if (!paintQueued) return;
     paintQueued = false;
     paintAll();
-  });
+  };
+  requestAnimationFrame(run);
+  setTimeout(run, 250);
 }
 
 function paintAll() {

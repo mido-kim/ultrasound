@@ -79,7 +79,8 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   a folder tree for the user to drag into Drive.
 - `js/dev-store.js`: in-memory store with files; `http://localhost:5174/?dev`
   tries every file screen without Firebase. Use it to test file features.
-- `js/console.js`: 펌웨어 콘솔 (`#/console`). Module state `con` (link,
+- `js/console.js`: 펌웨어 콘솔 (`#/console`), signed-in accounts only (the user's
+  wish; in local mode the page asks to sign in). Module state `con` (link,
   status, lines, log) outlives the page; `consolePage()` is drawn by render(),
   `mountConsole()` runs after it, and everything live is painted in place
   (never render()). Esc sends S from any page while connected. Settings the
