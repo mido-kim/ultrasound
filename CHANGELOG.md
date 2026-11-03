@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.1 — 2026-11-03
+
+- 펌웨어 콘솔: one-line legends under 송신 (단발 · 연속 · MUX 스윕), 주파수
+  (96 MHz ÷ an integer, so only these 8; 3.840 is enough for the 3.8 MHz
+  elements) and 모드 (A · M · B).
+- Stage 4 ③ says buttons are what to do and modes are which element and how
+  it's shown; ④ explains the 8 frequencies, that T doesn't fire, and that a
+  B picture takes 32 PRF ticks.
+- 노트북 준비 starts by saying the app and the console need no install (Chrome
+  or Edge); the installs are only for the laptop that uploads firmware.
+
 ## 0.8.0 — 2026-11-02
 
 - **펌웨어 콘솔** (`#/console`, button on 회로 보드 검증 and in stage 4): one

@@ -511,6 +511,7 @@ svg text.p1 { font-size: 9px; font-weight: 600; fill: var(--danger); }
 .con-tile.bad .v { color: var(--danger); }
 .con-row { display: grid; gap: 6px; }
 .con-row .lbl { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.con-help { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .con-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .con-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .con-seg.con-modes, .con-seg.con-axis { grid-template-columns: repeat(3, minmax(0, 1fr)); }

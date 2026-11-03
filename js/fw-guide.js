@@ -37,6 +37,7 @@ const CONSOLE = `
     <li>노트북 Chrome이나 Edge로 이 앱 → <a href="#/console">펌웨어 콘솔</a> → <b>연결</b> → 목록에서 USB 직렬 장치 고르기. 다음부터는 바로 붙어요.</li>
     <li>연결하면 먼저 정지 (S)를 보내고, 상태를 1초마다 읽어요.</li>
     <li>버튼이 곧 명령이에요. 단발 = X, 연속 = R (실수 방지로 두 번 눌러야 시작), 정지 = S, MUX 스윕 = T, 상태 다시 = ?.</li>
+    <li>버튼 (단발 · 연속 · MUX 스윕)은 무엇을 할지, 모드 (A · M · B)는 어느 소자를 쏘고 어떻게 볼지예요. A + 단발 = 한 줄 확인, B + 연속 = 실시간 단면 영상. 4단계는 A만 써요.</li>
     <li>주파수 · 소자 · PRF · 모드는 고르면 바로 보내요. 보드는 <b>다음 송신 때</b> 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 한 번 뒤에 바뀌어요.</li>
     <li>정지는 어느 화면에서든 Esc 키로도 돼요. 다른 화면으로 가도 연결은 그대로라, 체크리스트에 값을 적고 돌아와도 돼요.</li>
     <li>받은 줄: 가로는 µs (버스트부터) 또는 mm (물 기준 깊이), 세로는 ADC 코드 0–4095. 빨간 점선 = SAT (4090). 앞쪽 회색 = 최고값 계산에서 빼는 앞 40개 (송신 잡음).</li>
@@ -52,11 +53,11 @@ const COMMANDS = `
     <tr><td><code>S</code></td><td>정지. ARM · WINDOW를 바로 내려요. 고장 상태도 풀어요 (fault 값은 남아요)</td><td>없음</td></tr>
     <tr><td><code>X</code></td><td>단발. 한 번 쏘고 정지로. 연속 중이면 다음 줄 뒤에 정지</td><td>받은 줄 1개</td></tr>
     <tr><td><code>R</code></td><td>연속. PRF마다 쏴요. 정지 상태에서만</td><td>받은 줄 계속</td></tr>
-    <tr><td><code>T</code></td><td>MUX 스윕. EL0 → EL15 0.4초씩, 끝나면 모두 열림. 정지 상태에서만. 그 6.4초 동안은 다른 답이 늦어요</td><td>없음</td></tr>
-    <tr><td><code>F</code> n</td><td>주파수 번호 0–7</td><td>없음</td></tr>
+    <tr><td><code>T</code></td><td>MUX 스윕. 쏘지 않고 EL0 → EL15를 0.4초씩 이어요 (도통 확인용). 끝나면 모두 열림. 정지 상태에서만. 그 6.4초 동안은 다른 답이 늦어요</td><td>없음</td></tr>
+    <tr><td><code>F</code> n</td><td>주파수 번호 0–7. 96 MHz ÷ 정수로 만들어서 이 8개뿐이에요 (3.80은 안 됨). 3사이클 버스트는 폭이 약 1.5 MHz라 3.8 MHz 소자는 3.840으로 충분해요</td><td>없음</td></tr>
     <tr><td><code>E</code> n</td><td>소자 0–15 (터미널에서는 0–9, a–f)</td><td>없음</td></tr>
     <tr><td><code>P</code></td><td>PRF 1–2000 Hz. 숫자가 바이트 2개라 콘솔에서만</td><td>없음</td></tr>
-    <tr><td><code>A</code> <code>M</code> <code>B</code></td><td>모드. A = 한 줄, M = 한 소자를 시간에 따라, B = 16개 소자 영상</td><td>없음</td></tr>
+    <tr><td><code>A</code> <code>M</code> <code>B</code></td><td>모드. A = 고른 소자 한 줄 · M = 같은 소자를 시간 순으로 (움직임) · B = 줄마다 다음 소자, 16줄 단면 영상 (한 장에 PRF 32번)</td><td>없음</td></tr>
   </table></div>
   <div class="tw"><table>
     <tr><th>상태 값</th><th>뜻</th></tr>

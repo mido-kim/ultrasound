@@ -82,8 +82,11 @@ export function consolePage() {
               <button type="button" data-act="con-arm" id="con-arm" class="needs-link">연속 <span class="key">R</span></button>
               <button type="button" data-act="con-sweep" id="con-sweep" class="needs-link">MUX 스윕 <span class="key">T</span></button>
             </div>
+            <p class="con-help">단발 = 한 번 · 연속 = 정지까지 계속 · MUX 스윕 = 안 쏘고 EL0 → EL15만 차례로 이어 봄</p>
           </div>
-          <div class="con-row"><span class="lbl">주파수 (MHz)</span><div class="con-seg">${freqBtns}</div></div>
+          <div class="con-row"><span class="lbl">주파수 (MHz)</span><div class="con-seg">${freqBtns}</div>
+            <p class="con-help">96 MHz ÷ 정수라 이 8개뿐이에요. 3.8 MHz 소자는 3.840 (3사이클은 폭이 넓어 차이 없음)</p>
+          </div>
           <div class="con-row"><span class="lbl">소자 (EL)</span><div class="con-els">${elBtns}</div></div>
           <div class="con-row"><span class="lbl">PRF (1초에 쏘는 횟수)</span>
             <div class="con-btns">
@@ -91,7 +94,9 @@ export function consolePage() {
               <button type="button" data-act="con-prf" class="needs-link">적용</button>
             </div>
           </div>
-          <div class="con-row"><span class="lbl">모드</span><div class="con-seg con-modes">${modeBtns}</div></div>
+          <div class="con-row"><span class="lbl">모드</span><div class="con-seg con-modes">${modeBtns}</div>
+            <p class="con-help">A = 한 소자 한 줄 · M = 한 소자를 시간 순으로 (움직임) · B = 소자를 바꿔 가며 16줄 단면</p>
+          </div>
           <p class="small" id="con-pending"></p>
           <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
         </section>
