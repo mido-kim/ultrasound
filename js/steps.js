@@ -77,6 +77,7 @@ export const STAGES = [
     title: '고전압 경로',
     meta: '벤치 ±5 → ±24 V · HV 보드 BENCH 모드 · PRF ≤ 10 Hz · 3사이클',
     kinds: ['system'],
+    links: [['#/console', '펌웨어 콘솔 열기']],
     setup: [['off', 'J3 단락 플러그 뺌'], ['hv', 'HV J2 ↔ 메인 J3'], ['off', '메인 J4 ↔ HV J1 연결 안 함'], ['hv', 'J901 · J902 = 2-3 (BENCH)'], ['hv', 'J903 ← 이중 벤치 전원, 0 V부터, 전류 제한 낮게'], ['on', 'R702 ← 330 Ω 20 W'], ['on', 'R702 단자에 더미 C (≥ 200 V)']],
     notes: [{
       tone: 'danger', tag: '시작 조건',
@@ -94,6 +95,7 @@ export const STAGES = [
     title: '±48 V 스택',
     meta: '고전압 경로를 ±24 V까지 통과한 뒤',
     kinds: ['system'],
+    links: [['#/console', '펌웨어 콘솔 열기']],
     setup: [['off', '전원 다 끄고 바꾸기'], ['off', 'J903 벤치 전원 뺌'], ['hv', 'J901 · J902 = 1-2 (STACK)'], ['on', '메인 J4 ↔ HV J1 연결'], ['hv', 'HV J2 ↔ 메인 J3']],
   },
   {
@@ -101,7 +103,8 @@ export const STAGES = [
     title: '어레이 연결 · 영상',
     meta: 'J1001 · 3.84 MHz부터',
     kinds: ['system'],
-    intro: 'J1001은 홀수 핀 = EL0–EL15, 짝수 핀 = GND. 어레이 FPC 핀 배치가 맞는지 먼저 봐요. 접지 전극이 피검체 쪽. 3.8 MHz 소자는 F 2 (3.840 MHz)부터.',
+    intro: 'J1001은 홀수 핀 = EL0–EL15, 짝수 핀 = GND. 어레이 FPC 핀 배치가 맞는지 먼저 봐요. 어레이 소자 번호가 보드 채널과 다르면 첫 줄대로 콘솔에 채널 맵을 만들어요. 접지 전극이 피검체 쪽. 3.8 MHz 소자는 3.840 MHz부터.',
+    links: [['#/console', '펌웨어 콘솔 열기']],
   },
 ];
 
@@ -413,7 +416,15 @@ export const STEPS = [
   { id: 'x6.ffc', stage: 6, kind: 'system', do: 'FFC 50 V 문제 결정', pass: '어레이 연결 전에 정함' },
 
   // ---------------------------------------------------------------- 7 · array
-  { id: 'x7.map', stage: 7, kind: 'system', do: '채널 맵: 소자 n을 쏘면서 그 소자를 톡톡', pass: '화면 잡음 위치 = 두드린 소자' },
+  {
+    id: 'x7.map', stage: 7, kind: 'system', do: '채널 맵: 소자 n을 쏘면서 그 소자를 톡톡', pass: '화면 잡음 위치 = 두드린 소자',
+    how: [
+      '콘솔 채널 맵은 "보드 채널 그대로", 모드 B → 연속 (PRF 10–100 Hz, 낮은 전압부터)',
+      '어레이 소자 하나를 톡톡: B 화면에서 흔들리는 세로줄 번호 = 그 소자가 꽂힌 보드 채널 (EL)',
+      '채널 맵 → + 새 맵 (보드 번호로 시작) → 그 EL 칸에 어레이 소자 번호. 다른 소자도 같은 방법',
+      '맵을 고르면 소자 버튼 · B 화면이 어레이 번호 순서로 바뀌어요. 같은 번호를 두 채널에 넣으면 빨갛게 알려 줘요',
+    ],
+  },
   { id: 'x7.echo', stage: 7, kind: 'system', do: '수조에서 소자 하나, 반사판 5–10 cm', pass: 'A 모드에 에코' },
   { id: 'x7.cal', stage: 7, kind: 'system', do: '거리 2곳 이상으로 지연 보정 후 오차', pass: '2 mm 미만', spec: { unit: 'mm', max: 2 } },
   { id: 'x7.bmode', stage: 7, kind: 'system', do: '8채널 B 모드: 평평한 · 기울인 반사판', pass: '수평 띠 / 기운 띠. drop · CRC 0' },

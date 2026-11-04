@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — 2026-11-04
+
+- **채널 맵** in the 펌웨어 콘솔: for each board channel (J1001, EL0–EL15) the
+  array element number on it, or blank for none. Maps are shared
+  (config/channels, any number, named); which one a laptop uses is kept on
+  that laptop. With a map, the element buttons show the array numbers in
+  order (the channel under each), labels read "소자 5 (EL3)", and B mode scans
+  and draws in element order (sent as the firmware's Q list, so unconnected
+  channels are skipped). Two channels with the same number are flagged.
+- 연결 테스트 stages have a 펌웨어 콘솔 button; 어레이 연결 · 영상's first step
+  (채널 맵) has a 방법 list for finding the map by tapping elements in B mode.
+
 ## 0.8.1 — 2026-11-03
 
 - 펌웨어 콘솔: one-line legends under 송신 (단발 · 연속 · MUX 스윕), 주파수

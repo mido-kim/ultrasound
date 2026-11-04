@@ -7,17 +7,19 @@
 // redraws the app. The link stays open while other pages are shown: a step's
 // value can be typed in the checklist and the console picked up again.
 
+import { allBlank, clashes, elementOf, mapsOf, newMap, parseElement, sameAsBoard, scanOrder } from './chanmap.js';
 import { hasSerial, isDev, openLink } from './device.js';
 import {
   CMD, FREQ_LABELS, N_ELEM, PEAK_SKIP, SAT_CODE, STATES, SWEEP_MS,
   clampPrf, depthMm, faultNames, lineCsv, lineStats, sampleUs,
 } from './usc4.js';
-import { esc, saveFile } from './util.js';
+import { esc, readJSON, saveFile, writeJSON } from './util.js';
 
 const POLL_MS = 1000;
 const M_COLS = 300; // lines kept in the M-mode picture
 const LOG_MAX = 150;
 const ARM_CONFIRM_MS = 3000;
+const MAP_KEY = 'usbringup.chanmap'; // the 채널 맵 this device uses (its id; '' = the board's own numbers)
 
 const con = {
   link: null,
@@ -45,13 +47,95 @@ const con = {
   armUntil: 0,
   sweepUntil: 0,
   timers: [],
+  maps: [], // config/channels, from main.js at each render
+  mapId: readJSON(MAP_KEY, ''),
 };
+
+// ---------------------------------------------------------------- 채널 맵 (chanmap.js)
+
+const activeMap = () => con.maps.find((m) => m.id === con.mapId) || null;
+
+// A board channel as the person thinks of it: "소자 5 (EL3)" with a map.
+function chText(ch) {
+  const map = activeMap();
+  if (!map) return `EL${ch}`;
+  const e = elementOf(map, ch);
+  return e === null ? `연결 안 됨 (EL${ch})` : `소자 ${e} (EL${ch})`;
+}
+
+// Element buttons: the board's 16 channels, or with a map the mapped ones in
+// element order, each showing its element number over the channel.
+function elButtonsHtml() {
+  const map = activeMap();
+  return scanOrder(map).map((ch) => (map
+    ? `<button type="button" class="pick" data-act="con-el" data-e="${ch}" title="EL${ch}"><b>${elementOf(map, ch)}</b><small>EL${ch}</small></button>`
+    : `<button type="button" class="pick" data-act="con-el" data-e="${ch}" title="J1001 ${2 * ch + 1}번 핀">${ch}</button>`)).join('');
+}
+
+function mapPanelHtml() {
+  const map = activeMap();
+  const options = [`<option value="">보드 채널 그대로 (EL0–EL15)</option>`, ...con.maps.map((m) => `<option value="${esc(m.id)}"${m.id === con.mapId ? ' selected' : ''}>${esc(m.name)}</option>`)].join('');
+  const cells = map ? map.el.map((e, ch) => `<label class="con-map-cell"><span>EL${ch} <small>${2 * ch + 1}번 핀</small></span>
+    <input type="text" inputmode="numeric" id="con-map-${ch}" data-ch="${ch}" value="${e ?? ''}" placeholder="—" maxlength="3" autocomplete="off" aria-label="EL${ch}의 소자 번호"></label>`).join('') : '';
+  return `
+    <select id="con-map" aria-label="쓸 채널 맵">${options}</select>
+    ${map ? `<label class="field">이름<input type="text" id="con-map-name" value="${esc(map.name)}" maxlength="40" autocomplete="off"></label>
+      <div class="con-map-grid">${cells}</div>
+      <p class="small fail-t" id="con-map-warn">${clashHtml()}</p>
+      <div class="con-btns"><button type="button" data-act="con-map-same">보드 번호로 채우기</button><button type="button" data-act="con-map-blank">모두 비우기</button>
+        <span class="spacer"></span><button type="button" class="danger" data-act="con-map-del">이 맵 지우기</button></div>`
+    : '<p class="small muted">맵이 없으면 소자 번호 = 보드 채널 번호예요.</p>'}
+    <div class="con-btns"><button type="button" data-act="con-map-new">+ 새 맵</button></div>`;
+}
+
+function clashHtml() {
+  const c = clashes(activeMap());
+  return c.length ? `같은 번호가 두 채널에: ${c.map((x) => `소자 ${x.element} = ${x.chs.map((ch) => `EL${ch}`).join(', ')}`).join(' · ')}` : '';
+}
+
+// Saves the maps (main.js writes config/channels) and redraws what uses them.
+// rebuild: false while typing in the table, so the next box keeps the focus.
+function saveMaps(maps, host, rebuild = true) {
+  con.maps = maps;
+  host?.saveChannels(maps);
+  mapChanged(rebuild);
+}
+
+function useMap(id) {
+  con.mapId = id;
+  writeJSON(MAP_KEY, id);
+  mapChanged();
+}
+
+function mapChanged(rebuild = true) {
+  setHtml('con-els', elButtonsHtml());
+  if (rebuild) setHtml('con-map-body', mapPanelHtml());
+  else setHtml('con-map-warn', clashHtml());
+  if (con.link && (con.want?.mode ?? con.status?.mode) === 'B') sendScanOrder();
+  paintAll();
+}
+
+// One map with its el table changed.
+const withEl = (id, el) => con.maps.map((m) => (m.id === id ? { ...m, el } : m));
+
+// B mode scans the board channels in this order (Q), so the picture runs in
+// element order. The firmware takes it at the next shot, like the rest.
+function sendScanOrder() {
+  const order = scanOrder(activeMap());
+  if (!order.length) {
+    log('info', '맵에 소자가 하나도 없어요. B 모드 순서는 그대로예요.');
+    return;
+  }
+  send(CMD.sequence(order), `B 모드 순서: ${order.map((ch) => elementOf(activeMap(), ch)).join(' ')}`, `Q ${order.length}`);
+}
 
 // ---------------------------------------------------------------- page
 
 // signedIn: a signed-in account. In 이 기기에서만 (local) mode the console
 // stays closed, like the shared records: it asks to sign in instead.
-export function consolePage(signedIn = true) {
+// channels: the config/channels record (the 채널 맵s).
+export function consolePage(signedIn = true, channels = null) {
+  con.maps = mapsOf(channels);
   const head = `
   <div class="page-head">
     <a class="back" href="#/boards">← 회로 보드 검증</a>
@@ -66,7 +150,6 @@ export function consolePage(signedIn = true) {
   }
   const supported = hasSerial() || isDev();
   const freqBtns = FREQ_LABELS.map((f, i) => `<button type="button" class="pick" data-act="con-freq" data-i="${i}">${f}</button>`).join('');
-  const elBtns = Array.from({ length: N_ELEM }, (_, e) => `<button type="button" class="pick" data-act="con-el" data-e="${e}">${e}</button>`).join('');
   const modeBtns = ['A', 'M', 'B'].map((m) => `<button type="button" class="pick" data-act="con-mode" data-m="${m}">${m}</button>`).join('');
   return `${head}
   ${supported ? '' : `<div class="banner warn"><b>이 브라우저는 USB 시리얼을 못 써요</b>
@@ -96,7 +179,7 @@ export function consolePage(signedIn = true) {
           <div class="con-row"><span class="lbl">주파수 (MHz)</span><div class="con-seg">${freqBtns}</div>
             <p class="con-help">96 MHz ÷ 정수라 이 8개뿐이에요. 3.8 MHz 소자는 3.840 (3사이클은 폭이 넓어 차이 없음)</p>
           </div>
-          <div class="con-row"><span class="lbl">소자 (EL)</span><div class="con-els">${elBtns}</div></div>
+          <div class="con-row"><span class="lbl" id="con-el-lbl"></span><div class="con-els" id="con-els">${elButtonsHtml()}</div></div>
           <div class="con-row"><span class="lbl">PRF (1초에 쏘는 횟수)</span>
             <div class="con-btns">
               <input type="number" id="con-prf" min="1" max="2000" step="1" value="${con.want?.prf ?? 10}" aria-label="PRF (Hz)"><span class="unit">Hz</span>
@@ -108,6 +191,11 @@ export function consolePage(signedIn = true) {
           </div>
           <p class="small" id="con-pending"></p>
           <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
+        </section>
+        <section class="con-panel" aria-labelledby="con-map-h">
+          <h2 id="con-map-h">채널 맵</h2>
+          <p class="con-help">어레이 소자 번호가 보드 채널 (J1001)과 다르면 채널마다 소자 번호를 적어요. 비운 채널은 연결 안 된 것 (B 모드에서 건너뜀). 맵은 같이 쓰고, 고르는 건 이 노트북만.</p>
+          <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
         </section>
       </div>
       <div class="con-col">
@@ -170,7 +258,7 @@ function statusHtml() {
     <div class="con-tiles">
       ${tile('주파수', s.f !== null ? `${FREQ_LABELS[s.f] ?? s.f} MHz` : '?')}
       ${tile('PRF', `${s.prf} Hz`)}
-      ${tile('소자', `EL${s.el}`)}
+      ${tile('소자', chText(s.el))}
       ${tile('모드', esc(s.mode))}
       ${tile('보낸 줄 seq', s.seq)}
       ${tile('설정 번호 cfg', s.cfg)}
@@ -192,7 +280,7 @@ function readHtml() {
     <div class="con-tiles">
       <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (앞 ${PEAK_SKIP}개 빼고)</span><span class="v">${st.peak}${where}${st.sat ? ' · SAT' : ''}</span></div>
       <div class="con-tile"><span class="k">최저 · 평균</span><span class="v">${st.min} · ${Math.round(st.mean)}</span></div>
-      <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · EL${l.element} · ${mhz} MHz · ${esc(l.mode)}</span></div>
+      <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${chText(l.element)} · ${mhz} MHz · ${esc(l.mode)}</span></div>
       <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
       <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
     </div>
@@ -253,6 +341,8 @@ function paintControls() {
   root.querySelectorAll('.needs-link, [data-act="con-freq"], [data-act="con-el"], [data-act="con-mode"]').forEach((b) => (b.disabled = !on));
   const w = con.want || {};
   const s = con.status || {};
+  const elLbl = document.getElementById('con-el-lbl');
+  if (elLbl) elLbl.textContent = activeMap() ? `소자 (${activeMap().name})` : '소자 (EL)';
   root.querySelectorAll('[data-act="con-freq"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === (w.f ?? s.f))));
   root.querySelectorAll('[data-act="con-el"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.e) === (w.el ?? s.el))));
   root.querySelectorAll('[data-act="con-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === (w.mode ?? s.mode))));
@@ -282,7 +372,7 @@ function pendingHtml() {
   if (!w || !s) return '';
   const diff = [];
   if (w.f !== undefined && w.f !== s.f) diff.push(`${FREQ_LABELS[w.f]} MHz`);
-  if (w.el !== undefined && w.el !== s.el) diff.push(`EL${w.el}`);
+  if (w.el !== undefined && w.el !== s.el) diff.push(chText(w.el));
   if (w.prf !== undefined && w.prf !== s.prf) diff.push(`PRF ${w.prf} Hz`);
   if (w.mode !== undefined && w.mode !== s.mode) diff.push(`모드 ${esc(w.mode)}`);
   return diff.length ? `<span class="chip warn">다음 송신 때 적용</span> ${diff.join(' · ')}` : '';
@@ -392,11 +482,14 @@ function drawPlot() {
     return;
   }
 
-  // M: time runs left → right, one column per line. B: one column per element.
-  const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : con.bCols;
+  // M: time runs left → right, one column per line. B: one column per element,
+  // in element order when a 채널 맵 is in use.
+  const map = activeMap();
+  const order = scanOrder(map);
+  const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : order.map((ch) => con.bCols[ch]);
   const { pic, top } = picture(cols, n);
   ctx.imageSmoothingEnabled = mode === 'M';
-  ctx.drawImage(pic, L + 1, T + 1, pw - 2, ph - 2);
+  if (cols.length) ctx.drawImage(pic, L + 1, T + 1, pw - 2, ph - 2);
   ctx.fillStyle = tok('--muted');
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
@@ -414,10 +507,11 @@ function drawPlot() {
   } else {
     ctx.font = mono;
     ctx.textAlign = 'center';
-    for (let e = 0; e < N_ELEM; e += 3) ctx.fillText(String(e), L + ((e + 0.5) / N_ELEM) * pw, T + ph + 6);
+    const every = Math.max(1, Math.ceil(18 / (pw / Math.max(1, order.length)))); // labels at least 18 px apart
+    order.forEach((ch, k) => k % every === 0 && ctx.fillText(String(map ? elementOf(map, ch) : ch), L + ((k + 0.5) / order.length) * pw, T + ph + 6));
     ctx.font = body;
     ctx.textAlign = 'right';
-    ctx.fillText(`소자 · 흰색 = 코드 ${top} 이상 · 세로 ${unit}`, L + pw, T + ph + 19);
+    ctx.fillText(`${map ? '소자 번호' : '보드 채널'} · 흰색 = 코드 ${top} 이상 · 세로 ${unit}`, L + pw, T + ph + 19);
   }
 }
 
@@ -579,8 +673,11 @@ function pick(key, value) {
   if (!con.link) return;
   con.want = { ...(con.want || {}), [key]: value };
   if (key === 'f') send(CMD.freq(value), `주파수 ${FREQ_LABELS[value]} MHz`, `F${value}`);
-  if (key === 'el') send(CMD.element(value), `소자 EL${value}`, `E${value.toString(16)}`);
-  if (key === 'mode') send(CMD.mode(value), `모드 ${value}`, value);
+  if (key === 'el') send(CMD.element(value), chText(value), `E${value.toString(16)}`);
+  if (key === 'mode') {
+    if (value === 'B') sendScanOrder();
+    send(CMD.mode(value), `모드 ${value}`, value);
+  }
   if (key === 'prf') send(CMD.prf(value), `PRF ${value} Hz`, `P ${value >> 8} ${value & 0xff}`);
   paintControls();
 }
@@ -644,13 +741,27 @@ function sendRaw() {
 function saveLine() {
   const l = con.line;
   if (!l) return;
-  saveFile(`line_${l.sequence}_EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz.csv`, lineCsv(l), 'text/csv');
+  const e = activeMap() ? elementOf(activeMap(), l.element) : null;
+  saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz.csv`, lineCsv(l), 'text/csv');
 }
 
 // ---------------------------------------------------------------- events from main.js
+// host: { saveChannels(maps) }, which writes config/channels.
 
-export function consoleAction(act, el) {
+export function consoleAction(act, el, host) {
+  const map = activeMap();
   switch (act) {
+    case 'con-map-new': {
+      const m = newMap(con.maps);
+      saveMaps([...con.maps, m], host, false);
+      return useMap(m.id);
+    }
+    case 'con-map-same': return map && saveMaps(withEl(map.id, sameAsBoard()), host);
+    case 'con-map-blank': return map && saveMaps(withEl(map.id, allBlank()), host);
+    case 'con-map-del':
+      if (!map || !confirm(`"${map.name}" 맵을 지울까요? 같이 쓰는 기록이라 다른 계정에서도 없어져요.`)) return undefined;
+      saveMaps(con.maps.filter((m) => m.id !== map.id), host, false);
+      return useMap('');
     case 'con-connect': return connect();
     case 'con-disconnect': return disconnect();
     case 'con-stop':
@@ -678,8 +789,27 @@ export function consoleAction(act, el) {
   }
 }
 
-export function consoleChange(t) {
+export function consoleChange(t, host) {
   if (t.id === 'con-poll') con.poll = t.checked;
+  if (t.id === 'con-map') useMap(t.value);
+  const map = activeMap();
+  if (!map) return;
+  if (t.id === 'con-map-name') {
+    const name = t.value.trim() || map.name;
+    t.value = name;
+    if (name !== map.name) saveMaps(con.maps.map((m) => (m.id === map.id ? { ...m, name } : m)), host, false);
+  } else if (t.dataset.ch !== undefined) {
+    const ch = Number(t.dataset.ch);
+    const e = parseElement(t.value);
+    if (e === undefined) {
+      t.value = map.el[ch] ?? ''; // not a number: keep what was there
+      return;
+    }
+    if (e === map.el[ch]) return;
+    const el = [...map.el];
+    el[ch] = e;
+    saveMaps(withEl(map.id, el), host, false);
+  }
 }
 
 // Esc stops the board from any page while connected; Enter sends the box it's in.

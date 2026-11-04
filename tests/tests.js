@@ -18,6 +18,9 @@ import {
 } from '../js/records.js';
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 import {
+  allBlank, channelsRecord, clashes, elementOf, mapsOf, newMap, parseElement, sameAsBoard, scanOrder,
+} from '../js/chanmap.js';
+import {
   CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, sampleUs,
 } from '../js/usc4.js';
 
@@ -177,6 +180,23 @@ test('usc4: command bytes, PRF limits, peak after the first 40 samples, time and
   if (!near(depthMm(line, 0), 4.44)) throw new Error('depth (as usc4.py: 6 µs at 1480 m/s = 4.44 mm)');
   eq(lineCsv({ ...line, samples: [1, 2] }).split('\r\n').slice(0, 2), ['sample,time_us,depth_mm,code', '0,6.0000,4.440,1']);
   eq(FREQ_HZ.length, 8);
+});
+
+test('채널 맵: typed numbers, scan order by element number, clashes, new maps', () => {
+  eq([parseElement(' 7 '), parseElement(''), parseElement('x'), parseElement('-1'), parseElement('1000')], [7, null, undefined, undefined, undefined]);
+  eq(scanOrder(null), sameAsBoard(), 'no map: the board order');
+  const el = allBlank();
+  el[0] = 4; el[3] = 1; el[5] = 2; el[9] = 3; // 4 elements, wired out of order
+  const map = { id: 'm', name: 'v1 B1', el };
+  eq(scanOrder(map), [3, 5, 9, 0], 'channels in element order, empty ones left out');
+  eq([elementOf(map, 3), elementOf(map, 1), elementOf(null, 6)], [1, null, 6]);
+  el[12] = 2;
+  eq(clashes(map), [{ element: 2, chs: [5, 12] }]);
+  eq(scanOrder(map), [3, 5, 12, 9, 0], 'a clash keeps both, in channel order');
+  const m2 = newMap([map, { id: 'x', name: '맵 3', el: allBlank() }]);
+  eq([m2.name, m2.el], ['맵 4', sameAsBoard()]);
+  eq(mapsOf(channelsRecord([map, { id: 'bad', name: 'short', el: [1, 2] }], '미도')).map((m) => m.id), ['m']);
+  eq(mapsOf(undefined), []);
 });
 
 // ---- boards

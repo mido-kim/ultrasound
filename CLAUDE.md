@@ -91,6 +91,11 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   packets + "#st=" status lines), command bytes, CRC: same bytes as
   `../host/usc4.py` and `../firmware/us_control_v5_fw/src/main.c`; tests.js
   holds Python-made vectors. Change them together with the firmware.
+- `js/chanmap.js`: 채널 맵s (board channel → array element number), kept in
+  the shared `config/channels`; the console's chosen map is per device
+  (`usbringup.chanmap`). With a map, B mode is sent as a `Q` list in element
+  order. main.js passes the record to `consolePage()` and saves through
+  `consoleHost.saveChannels`.
 - `js/fw-guide.js`: stage 4's folding parts (`STAGE_DETAIL`), shown by
   `stageSection`; steps can have `how` (the 방法 list) and stages `links`.
   Which folds are open lives in `openDetails` in main.js (kept across
@@ -109,7 +114,8 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
 ## Data
 
 Note (`notes`): `{ id, target: '<coll>/<id>' | 'home', text, by, byUid, at,
-editedAt? }`. Folder (`folders`): `{ id, parent, name, order, memo, drive,
+editedAt? }`. 채널 맵s (`config/channels`): `{ id: 'channels', maps: [{ id, name,
+el: [16 × element number | null] }], updatedAt, updatedBy }`. Folder (`folders`): `{ id, parent, name, order, memo, drive,
 updatedAt, updatedBy }`.
 
 Board: `{ id, kind: 'main' | 'hv' | 'system', name, notes, mainId, hvId,

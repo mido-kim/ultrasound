@@ -10,6 +10,7 @@ import {
   MEMO_COLORS, MEMO_MAX, ROOT, SEED_FOLDERS, childrenOf, deleteFolderOps, descendantsOf, memoHtml, memoOffset, memoPoint,
   memoText, nextOrder, paintRuns, placesFor, runsOf, sanitizeMemo,
 } from './folders.js';
+import { CHANNELS_DOC, channelsRecord } from './chanmap.js';
 import { consoleAction, consoleChange, consolePage, mountConsole } from './console.js';
 import { STAGE_DETAIL } from './fw-guide.js';
 import { GUIDE_HTML } from './guide.js';
@@ -191,7 +192,7 @@ function render(newPage = false) {
   const pages = {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
     edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, places: placesPage, settings: settingsPage, home: homePage,
-    console: () => consolePage(store.kind === 'cloud'),
+    console: () => consolePage(store.kind === 'cloud', state.config.get(CHANNELS_DOC)),
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
   hydrateFiles();
@@ -740,6 +741,11 @@ function stageSection(b, s) {
     ${html}
   </section>`;
 }
+
+// What the console needs from the app: saving the shared 채널 맵s (config/channels).
+const consoleHost = {
+  saveChannels: (maps) => commit([{ op: 'put', coll: 'config', obj: channelsRecord(maps, who().name) }]),
+};
 
 // Folded parts (stage detail, a step's 방법) that are open: kept across redraws.
 const openDetails = new Set();
@@ -1354,7 +1360,7 @@ function wireEvents() {
   });
   app.addEventListener('change', (e) => {
     const t = e.target;
-    if (t.id?.startsWith('con-')) return consoleChange(t);
+    if (t.id?.startsWith('con-')) return consoleChange(t, consoleHost);
     if (t.dataset?.pe === 'value') {
       editField(t.dataset.id, 'value', t.checked);
       saveProto();
@@ -1415,7 +1421,7 @@ function onClick(e) {
   const act = el?.dataset.act;
   if (!act) return;
   if (act.startsWith('pe-')) return editAction(act, el);
-  if (act.startsWith('con-')) return consoleAction(act, el);
+  if (act.startsWith('con-')) return consoleAction(act, el, consoleHost);
   switch (act) {
     case 'add-board': return addBoard(el.dataset.kind);
     case 'add-system': return boardDialog(null);

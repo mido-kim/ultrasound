@@ -15,11 +15,11 @@ export function simPort() {
   let statusWanted = false;
   let busyUntil = 0; // T sweep
   let single = false;
-  const s = { st: 0, mode: 'A', f: 0, prf: 10, el: 0, cfg: 1, seq: 0, skip: 0, txerr: 0, fault: 0, hse: 25, late: 0, frame: 0, pos: 0 };
+  const s = { st: 0, mode: 'A', f: 0, prf: 10, el: 0, cfg: 1, seq: 0, skip: 0, txerr: 0, fault: 0, hse: 25, late: 0, frame: 0, pos: 0, list: Array.from({ length: N_ELEM }, (_, i) => i) };
   let pending = null; // settings sent, applied at the next tick while armed
   let t0 = performance.now();
 
-  const want = () => (pending ||= { mode: s.mode, f: s.f, prf: s.prf, el: s.el });
+  const want = () => (pending ||= { mode: s.mode, f: s.f, prf: s.prf, el: s.el, list: s.list });
   const status = () => {
     if (performance.now() < busyUntil) {
       statusWanted = true;
@@ -50,16 +50,17 @@ export function simPort() {
       Object.assign(s, pending);
       pending = null;
       s.cfg++;
+      s.pos = 0;
       if (s.prf !== prf) restartTimer();
     }
-    const el = s.mode === 'B' ? s.pos : s.el;
+    const el = s.mode === 'B' ? s.list[s.pos] : s.el;
     const pkt = encodeLine(samples(el), {
       sequence: s.seq, frame: s.frame, element: el, mode: s.mode, config: s.cfg,
       fsHz: 1600000, txHz: FREQ_HZ[s.f], txTimeUs: Math.round((performance.now() - t0) * 1000) + 50,
       adcDelayNs: Math.round(BLANK_US[s.f] * 1000),
     });
     s.seq++;
-    if (s.mode === 'B' && ++s.pos >= N_ELEM) {
+    if (s.mode === 'B' && ++s.pos >= s.list.length) {
       s.pos = 0;
       s.frame++;
     }
@@ -101,7 +102,9 @@ export function simPort() {
       }
       case 'Q':
         if (b.length < 2) return 0;
+        if (b[1] < 1 || b[1] > N_ELEM) return 2;
         if (b.length < 2 + b[1]) return 0;
+        want().list = [...b.slice(2, 2 + b[1])].map((x) => x % N_ELEM);
         return 2 + b[1];
       case 'R':
         if (s.st === 0 && performance.now() >= busyUntil) {
