@@ -7,7 +7,7 @@
 // redraws the app. The link stays open while other pages are shown: a step's
 // value can be typed in the checklist and the console picked up again.
 
-import { allBlank, clashes, elementOf, mapsOf, newMap, parseElement, sameAsBoard, scanOrder } from './chanmap.js';
+import { boardOrder, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from './chanmap.js';
 import { hasSerial, isDev, openLink } from './device.js';
 import {
   CMD, FREQ_LABELS, N_ELEM, PEAK_SKIP, SAT_CODE, STATES, SWEEP_MS,
@@ -49,6 +49,8 @@ const con = {
   timers: [],
   maps: [], // config/channels, from main.js at each render
   mapId: readJSON(MAP_KEY, ''),
+  mapEdit: false, // the map table is open
+  mapSavedAt: 0,
 };
 
 // ---------------------------------------------------------------- 채널 맵 (chanmap.js)
@@ -63,8 +65,8 @@ function chText(ch) {
   return e === null ? `연결 안 됨 (EL${ch})` : `소자 ${e} (EL${ch})`;
 }
 
-// Element buttons: the board's 16 channels, or with a map the mapped ones in
-// element order, each showing its element number over the channel.
+// Element buttons: the board's 16 channels, or with a map the array's
+// elements in number order, each showing its number over the channel.
 function elButtonsHtml() {
   const map = activeMap();
   return scanOrder(map).map((ch) => (map
@@ -72,31 +74,55 @@ function elButtonsHtml() {
     : `<button type="button" class="pick" data-act="con-el" data-e="${ch}" title="J1001 ${2 * ch + 1}번 핀">${ch}</button>`)).join('');
 }
 
+const chOptions = (sel) => ['<option value="">—</option>',
+  ...Array.from({ length: N_ELEM }, (_, ch) => `<option value="${ch}"${ch === sel ? ' selected' : ''}>EL${ch}</option>`)].join('');
+
+// The map picker, and with 편집 open the table: the array's element numbers
+// in order, each with the board channel it is wired to.
 function mapPanelHtml() {
   const map = activeMap();
-  const options = [`<option value="">보드 채널 그대로 (EL0–EL15)</option>`, ...con.maps.map((m) => `<option value="${esc(m.id)}"${m.id === con.mapId ? ' selected' : ''}>${esc(m.name)}</option>`)].join('');
-  const cells = map ? map.el.map((e, ch) => `<label class="con-map-cell"><span>EL${ch} <small>${2 * ch + 1}번 핀</small></span>
-    <input type="text" inputmode="numeric" id="con-map-${ch}" data-ch="${ch}" value="${e ?? ''}" placeholder="—" maxlength="3" autocomplete="off" aria-label="EL${ch}의 소자 번호"></label>`).join('') : '';
-  return `
-    <select id="con-map" aria-label="쓸 채널 맵">${options}</select>
-    ${map ? `<label class="field">이름<input type="text" id="con-map-name" value="${esc(map.name)}" maxlength="40" autocomplete="off"></label>
-      <div class="con-map-grid">${cells}</div>
-      <p class="small fail-t" id="con-map-warn">${clashHtml()}</p>
-      <div class="con-btns"><button type="button" data-act="con-map-same">보드 번호로 채우기</button><button type="button" data-act="con-map-blank">모두 비우기</button>
-        <span class="spacer"></span><button type="button" class="danger" data-act="con-map-del">이 맵 지우기</button></div>`
-    : '<p class="small muted">맵이 없으면 소자 번호 = 보드 채널 번호예요.</p>'}
-    <div class="con-btns"><button type="button" data-act="con-map-new">+ 새 맵</button></div>`;
+  const options = ['<option value="">보드 채널 그대로</option>',
+    ...con.maps.map((m) => `<option value="${esc(m.id)}"${m.id === con.mapId ? ' selected' : ''}>${esc(m.name)}</option>`)].join('');
+  const head = `<div class="con-btns">
+      <select id="con-map" aria-label="쓸 채널 맵">${options}</select>
+      <button type="button" data-act="con-map-new">+ 새 맵</button>
+      ${map ? `<button type="button" data-act="con-map-edit" aria-expanded="${con.mapEdit}">${con.mapEdit ? '닫기' : '편집'}</button>` : ''}
+    </div>`;
+  if (!map || !con.mapEdit) return head;
+  const base = map.base ?? 1;
+  const cells = map.order.map((ch, k) => `<label class="con-map-cell"><span>소자 ${k + base}</span>
+      <select id="con-map-${k}" data-k="${k}" aria-label="소자 ${k + base}의 보드 채널">${chOptions(ch)}</select></label>`).join('');
+  return `${head}
+    <div class="con-btns">
+      <label class="field con-map-name">이름<input type="text" id="con-map-name" value="${esc(map.name)}" maxlength="40" autocomplete="off"></label>
+      <label class="field">번호<select id="con-map-base">
+        <option value="1"${base === 1 ? ' selected' : ''}>1부터</option><option value="0"${base === 0 ? ' selected' : ''}>0부터</option></select></label>
+    </div>
+    <div class="con-map-grid">${cells}</div>
+    <p class="small fail-t" id="con-map-warn">${clashHtml()}</p>
+    <div class="con-btns">
+      <button type="button" data-act="con-map-board">보드 순서로</button><button type="button" data-act="con-map-none">모두 비우기</button>
+      <span class="spacer"></span><button type="button" class="danger" data-act="con-map-del">이 맵 지우기</button>
+    </div>
+    <p class="small muted" id="con-map-saved">${savedHtml()}</p>`;
 }
 
 function clashHtml() {
   const c = clashes(activeMap());
-  return c.length ? `같은 번호가 두 채널에: ${c.map((x) => `소자 ${x.element} = ${x.chs.map((ch) => `EL${ch}`).join(', ')}`).join(' · ')}` : '';
+  return c.length ? `한 채널을 두 번 골랐어요: ${c.map((x) => `EL${x.ch} → 소자 ${x.elements.join(', ')}`).join(' · ')}` : '';
+}
+
+function savedHtml() {
+  if (!con.mapSavedAt) return '바꾸면 바로 저장돼요.';
+  const d = new Date(con.mapSavedAt);
+  return `저장됨 · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 // Saves the maps (main.js writes config/channels) and redraws what uses them.
-// rebuild: false while typing in the table, so the next box keeps the focus.
+// rebuild: false for a change inside the table, so the box in use keeps focus.
 function saveMaps(maps, host, rebuild = true) {
   con.maps = maps;
+  con.mapSavedAt = Date.now();
   host?.saveChannels(maps);
   mapChanged(rebuild);
 }
@@ -109,17 +135,21 @@ function useMap(id) {
 
 function mapChanged(rebuild = true) {
   setHtml('con-els', elButtonsHtml());
-  if (rebuild) setHtml('con-map-body', mapPanelHtml());
-  else setHtml('con-map-warn', clashHtml());
+  if (rebuild) {
+    setHtml('con-map-body', mapPanelHtml());
+  } else {
+    setHtml('con-map-warn', clashHtml());
+    setHtml('con-map-saved', savedHtml());
+  }
   if (con.link && (con.want?.mode ?? con.status?.mode) === 'B') sendScanOrder();
   paintAll();
 }
 
-// One map with its el table changed.
-const withEl = (id, el) => con.maps.map((m) => (m.id === id ? { ...m, el } : m));
+// The maps with one of them changed.
+const withMap = (id, change) => con.maps.map((m) => (m.id === id ? { ...m, ...change } : m));
 
 // B mode scans the board channels in this order (Q), so the picture runs in
-// element order. The firmware takes it at the next shot, like the rest.
+// the array's number order. The firmware takes it at the next shot.
 function sendScanOrder() {
   const order = scanOrder(activeMap());
   if (!order.length) {
@@ -166,6 +196,11 @@ export function consolePage(signedIn = true, channels = null) {
             <label class="con-check"><input type="checkbox" id="con-poll"${con.poll ? ' checked' : ''}> 1초마다 읽기</label>
           </div>
         </section>
+        <section class="con-panel" aria-labelledby="con-map-h">
+          <h2 id="con-map-h">채널 맵</h2>
+          <p class="con-help">어레이 소자 번호 순서대로, 각 소자가 꽂힌 보드 채널 (J1001 EL)을 골라요. 맵은 이름을 붙여 같이 저장되고, 이 노트북은 고른 맵을 기억해요. 빈 칸 = 소자 없음.</p>
+          <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
+        </section>
         <section class="con-panel" aria-labelledby="con-tx-h">
           <h2 id="con-tx-h">보내기</h2>
           <div class="con-row"><span class="lbl">송신</span>
@@ -191,11 +226,6 @@ export function consolePage(signedIn = true, channels = null) {
           </div>
           <p class="small" id="con-pending"></p>
           <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
-        </section>
-        <section class="con-panel" aria-labelledby="con-map-h">
-          <h2 id="con-map-h">채널 맵</h2>
-          <p class="con-help">어레이 소자 번호가 보드 채널 (J1001)과 다르면 채널마다 소자 번호를 적어요. 비운 채널은 연결 안 된 것 (B 모드에서 건너뜀). 맵은 같이 쓰고, 고르는 건 이 노트북만.</p>
-          <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
         </section>
       </div>
       <div class="con-col">
@@ -753,11 +783,15 @@ export function consoleAction(act, el, host) {
   switch (act) {
     case 'con-map-new': {
       const m = newMap(con.maps);
+      con.mapEdit = true;
       saveMaps([...con.maps, m], host, false);
       return useMap(m.id);
     }
-    case 'con-map-same': return map && saveMaps(withEl(map.id, sameAsBoard()), host);
-    case 'con-map-blank': return map && saveMaps(withEl(map.id, allBlank()), host);
+    case 'con-map-edit':
+      con.mapEdit = !con.mapEdit;
+      return setHtml('con-map-body', mapPanelHtml());
+    case 'con-map-board': return map && saveMaps(withMap(map.id, { order: boardOrder() }), host);
+    case 'con-map-none': return map && saveMaps(withMap(map.id, { order: noneOrder() }), host);
     case 'con-map-del':
       if (!map || !confirm(`"${map.name}" 맵을 지울까요? 같이 쓰는 기록이라 다른 계정에서도 없어져요.`)) return undefined;
       saveMaps(con.maps.filter((m) => m.id !== map.id), host, false);
@@ -797,18 +831,13 @@ export function consoleChange(t, host) {
   if (t.id === 'con-map-name') {
     const name = t.value.trim() || map.name;
     t.value = name;
-    if (name !== map.name) saveMaps(con.maps.map((m) => (m.id === map.id ? { ...m, name } : m)), host, false);
-  } else if (t.dataset.ch !== undefined) {
-    const ch = Number(t.dataset.ch);
-    const e = parseElement(t.value);
-    if (e === undefined) {
-      t.value = map.el[ch] ?? ''; // not a number: keep what was there
-      return;
-    }
-    if (e === map.el[ch]) return;
-    const el = [...map.el];
-    el[ch] = e;
-    saveMaps(withEl(map.id, el), host, false);
+    if (name !== map.name) saveMaps(withMap(map.id, { name }), host, false);
+  } else if (t.id === 'con-map-base') {
+    saveMaps(withMap(map.id, { base: Number(t.value) }), host);
+  } else if (t.dataset.k !== undefined) {
+    const order = [...map.order];
+    order[Number(t.dataset.k)] = t.value === '' ? null : Number(t.value);
+    saveMaps(withMap(map.id, { order }), host, false);
   }
 }
 

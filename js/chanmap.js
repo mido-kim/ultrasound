@@ -1,9 +1,10 @@
-// 채널 맵: which array element each board channel goes to, for when the
-// array's own numbering doesn't follow the board's (J1001 odd pins = EL0–EL15).
-// The shared record config/channels holds the maps:
-//   { id: 'channels', maps: [{ id, name, el }], updatedAt, updatedBy }
-// el has 16 entries, index = board channel: the array element number on that
-// channel, or null when nothing is on it. Which map a laptop uses is a
+// 채널 맵: for when the array's own element numbers don't follow the board's
+// channels (J1001 odd pins = EL0–EL15). A map lists the array's elements in
+// their own number order and gives each one the board channel it is wired to.
+// The shared record config/channels keeps the maps, each under a name:
+//   { id: 'channels', maps: [{ id, name, base, order }], updatedAt, updatedBy }
+// order[k] = board channel of array element k + base (base 1 or 0, how the
+// array is numbered), null = no element there. Which map a laptop uses is a
 // per-device setting (console.js). No DOM here: tests.js checks it.
 
 import { uid } from './util.js';
@@ -11,44 +12,41 @@ import { uid } from './util.js';
 export const CHANNELS_DOC = 'channels';
 export const N_CH = 16;
 
-export const sameAsBoard = () => Array.from({ length: N_CH }, (_, i) => i);
-export const allBlank = () => new Array(N_CH).fill(null);
+export const boardOrder = () => Array.from({ length: N_CH }, (_, i) => i);
+export const noneOrder = () => new Array(N_CH).fill(null);
+
+const isMap = (m) => m && m.id && Array.isArray(m.order) && m.order.length === N_CH;
 
 // The maps in config/channels; a missing record has none.
-export function mapsOf(doc) {
-  return Array.isArray(doc?.maps) ? doc.maps.filter((m) => m && m.id && Array.isArray(m.el) && m.el.length === N_CH) : [];
-}
+export const mapsOf = (doc) => (Array.isArray(doc?.maps) ? doc.maps.filter(isMap) : []);
 
 export const channelsRecord = (maps, by) => ({ id: CHANNELS_DOC, maps, updatedAt: new Date().toISOString(), updatedBy: by });
 
-// A new map starts with the board's own numbers, so only the channels that
-// differ need typing.
+// A new map starts in the board's own order, so only what differs needs picking.
 export function newMap(maps) {
   const n = maps.reduce((m, x) => Math.max(m, Number(/^맵 (\d+)$/.exec(x.name)?.[1] || 0)), 0);
-  return { id: uid(), name: `맵 ${n + 1}`, el: sameAsBoard() };
+  return { id: uid(), name: `맵 ${n + 1}`, base: 1, order: boardOrder() };
 }
 
-// What was typed for one channel: "3" → 3, blank → null (nothing on it),
-// anything else → undefined (keep the old value).
-export function parseElement(text) {
-  const t = String(text ?? '').trim();
-  if (!t) return null;
-  return /^\d{1,3}$/.test(t) ? Number(t) : undefined;
+// The array element number on a board channel (the first one, if picked twice).
+// No map: the channel number itself.
+export function elementOf(map, ch) {
+  if (!map) return ch;
+  const k = map.order.indexOf(ch);
+  return k < 0 ? null : k + (map.base ?? 1);
 }
 
-export const elementOf = (map, ch) => (map ? map.el[ch] ?? null : ch);
-
-// Board channels in the order of their element numbers, without the empty
-// ones: the B-mode scan order and the order of the console's element
-// buttons. No map: the board's own order.
+// Board channels in the array's number order, each once, empty places left
+// out: the B-mode scan order and the order of the console's element buttons.
+// No map: the board's own order.
 export function scanOrder(map) {
-  if (!map) return sameAsBoard();
-  return map.el.map((e, ch) => [e, ch]).filter(([e]) => e !== null).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, ch]) => ch);
+  if (!map) return boardOrder();
+  return map.order.filter((ch, k) => ch !== null && map.order.indexOf(ch) === k);
 }
 
-// Element numbers given to more than one channel.
+// Board channels picked for more than one array element.
 export function clashes(map) {
   const seen = new Map();
-  (map?.el || []).forEach((e, ch) => e !== null && seen.set(e, [...(seen.get(e) || []), ch]));
-  return [...seen].filter(([, chs]) => chs.length > 1).map(([element, chs]) => ({ element, chs }));
+  (map?.order || []).forEach((ch, k) => ch !== null && seen.set(ch, [...(seen.get(ch) || []), k + (map.base ?? 1)]));
+  return [...seen].filter(([, els]) => els.length > 1).map(([ch, elements]) => ({ ch, elements }));
 }

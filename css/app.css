@@ -523,8 +523,10 @@ svg text.p1 { font-size: 9px; font-weight: 600; fill: var(--danger); }
 .con-map { display: grid; gap: 10px; }
 .con-map-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .con-map-cell { display: grid; gap: 2px; font-size: 12px; color: var(--muted); min-width: 0; }
-.con-map-cell small { font-size: 10.5px; }
-.con-map-cell input { font-family: var(--f-mono); text-align: center; padding: 6px 4px; }
+.con-map-cell select { font-family: var(--f-mono); font-size: 13px; padding: 6px 4px; }
+.con-map #con-map { flex: 1 1 160px; width: auto; min-width: 0; }
+.con-map .con-map-name { flex: 1 1 160px; }
+.con-map .field select { width: auto; }
 .con-map #con-map-warn:empty { display: none; }
 button.pick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 button.stop { background: var(--danger); border-color: var(--danger); color: var(--surface); font-weight: 700; padding-inline: 18px; }

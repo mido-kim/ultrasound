@@ -2,13 +2,14 @@
 
 ## 0.9.0 — 2026-11-04
 
-- **채널 맵** in the 펌웨어 콘솔: for each board channel (J1001, EL0–EL15) the
-  array element number on it, or blank for none. Maps are shared
-  (config/channels, any number, named); which one a laptop uses is kept on
-  that laptop. With a map, the element buttons show the array numbers in
-  order (the channel under each), labels read "소자 5 (EL3)", and B mode scans
-  and draws in element order (sent as the firmware's Q list, so unconnected
-  channels are skipped). Two channels with the same number are flagged.
+- **채널 맵** in the 펌웨어 콘솔, between 상태 and 보내기: the array's element
+  numbers in order (from 1 or from 0), each with the board channel (J1001
+  EL0–EL15) it is wired to, picked from a list; blank = no element. Maps have
+  names and save as they change (shared, config/channels); each laptop
+  remembers the one it picked. With a map, the element buttons show the
+  array numbers in order (the channel under each), labels read "소자 5 (EL3)",
+  and B mode scans and draws in array order (sent as the firmware's Q list,
+  so empty places are skipped). A channel picked for two elements is flagged.
 - 연결 테스트 stages have a 펌웨어 콘솔 button; 어레이 연결 · 영상's first step
   (채널 맵) has a 방법 list for finding the map by tapping elements in B mode.
 

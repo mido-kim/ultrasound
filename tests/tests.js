@@ -17,9 +17,7 @@ import {
   boardProgress, deleteBoardOps, earlierUnfinished, newBoard, nextBoardName, over50, resultId, resultOps,
 } from '../js/records.js';
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
-import {
-  allBlank, channelsRecord, clashes, elementOf, mapsOf, newMap, parseElement, sameAsBoard, scanOrder,
-} from '../js/chanmap.js';
+import { boardOrder, channelsRecord, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from '../js/chanmap.js';
 import {
   CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, sampleUs,
 } from '../js/usc4.js';
@@ -182,20 +180,21 @@ test('usc4: command bytes, PRF limits, peak after the first 40 samples, time and
   eq(FREQ_HZ.length, 8);
 });
 
-test('채널 맵: typed numbers, scan order by element number, clashes, new maps', () => {
-  eq([parseElement(' 7 '), parseElement(''), parseElement('x'), parseElement('-1'), parseElement('1000')], [7, null, undefined, undefined, undefined]);
-  eq(scanOrder(null), sameAsBoard(), 'no map: the board order');
-  const el = allBlank();
-  el[0] = 4; el[3] = 1; el[5] = 2; el[9] = 3; // 4 elements, wired out of order
-  const map = { id: 'm', name: 'v1 B1', el };
-  eq(scanOrder(map), [3, 5, 9, 0], 'channels in element order, empty ones left out');
-  eq([elementOf(map, 3), elementOf(map, 1), elementOf(null, 6)], [1, null, 6]);
-  el[12] = 2;
-  eq(clashes(map), [{ element: 2, chs: [5, 12] }]);
-  eq(scanOrder(map), [3, 5, 12, 9, 0], 'a clash keeps both, in channel order');
-  const m2 = newMap([map, { id: 'x', name: '맵 3', el: allBlank() }]);
-  eq([m2.name, m2.el], ['맵 4', sameAsBoard()]);
-  eq(mapsOf(channelsRecord([map, { id: 'bad', name: 'short', el: [1, 2] }], '미도')).map((m) => m.id), ['m']);
+test('채널 맵: array number order → board channels, numbering base, clashes, new maps', () => {
+  eq(scanOrder(null), boardOrder(), 'no map: the board order');
+  const order = noneOrder();
+  order[0] = 3; order[1] = 5; order[2] = 9; order[3] = 0; // elements 1–4, wired out of order
+  const map = { id: 'm', name: 'v1 B1', base: 1, order };
+  eq(scanOrder(map), [3, 5, 9, 0], 'channels in the array order, empty places left out');
+  eq([elementOf(map, 9), elementOf(map, 1), elementOf(null, 6)], [3, null, 6]);
+  eq(elementOf({ ...map, base: 0 }, 9), 2, 'numbered from 0');
+  order[6] = 5; // EL5 picked again for element 7
+  eq(clashes(map), [{ ch: 5, elements: [2, 7] }]);
+  eq(scanOrder(map), [3, 5, 9, 0], 'a channel picked twice is scanned once');
+  eq(elementOf(map, 5), 2, 'and named by its first place');
+  const m2 = newMap([map, { id: 'x', name: '맵 3', base: 1, order: noneOrder() }]);
+  eq([m2.name, m2.base, m2.order], ['맵 4', 1, boardOrder()]);
+  eq(mapsOf(channelsRecord([map, { id: 'bad', name: 'short', order: [1, 2] }], '미도')).map((m) => m.id), ['m']);
   eq(mapsOf(undefined), []);
 });
 
