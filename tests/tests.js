@@ -19,7 +19,8 @@ import {
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 import { boardOrder, channelsRecord, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from '../js/chanmap.js';
 import {
-  CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, sampleUs,
+  CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, recordingCsv,
+  recordingRaw, sampleUs,
 } from '../js/usc4.js';
 
 const results = [];
@@ -176,7 +177,7 @@ test('usc4: command bytes, PRF limits, peak after the first 40 samples, time and
   eq(lineStats(line), { peak: 700, at: 200, min: 100, mean: (478 * 100 + 4000 + 700) / 480, sat: true });
   if (!near(sampleUs(line, 1), 6.625)) throw new Error('time');
   if (!near(depthMm(line, 0), 4.44)) throw new Error('depth (as usc4.py: 6 µs at 1480 m/s = 4.44 mm)');
-  eq(lineCsv({ ...line, samples: [1, 2] }).split('\r\n').slice(0, 2), ['sample,time_us,depth_mm,code', '0,6.0000,4.440,1']);
+  eq(lineCsv({ ...line, samples: [1, 2] }).split('\r\n').slice(0, 2), ['sample,time_us,depth_mm,adc_code,adc_V', '0,6.0000,4.440,1,0.0008']);
   eq(FREQ_HZ.length, 8);
 });
 
@@ -196,6 +197,19 @@ test('채널 맵: array number order → board channels, numbering base, clashes
   eq([m2.name, m2.base, m2.order], ['맵 4', 1, boardOrder()]);
   eq(mapsOf(channelsRecord([map, { id: 'bad', name: 'short', order: [1, 2] }], '미도')).map((m) => m.id), ['m']);
   eq(mapsOf(undefined), []);
+});
+
+test('usc4: a recording saves as CSV rows in volts, and as the bytes that came in', () => {
+  const [ev] = new StreamParser().feed(PY_PACKET);
+  const recs = [{ ms: 0, line: ev, element: 7 }, { ms: 25, line: ev, element: null }];
+  const csv = recordingCsv(recs).join('').split('\r\n');
+  eq(csv[0], 'board_us,pc_ms,seq,frame,board_ch,element,mode,tx_MHz,adc_start_us,dt_us,sat,V0,V1,V2,V3');
+  eq(csv[1], '123456,0,7,1,3,7,B,3.840,6.000,0.6250,1,0.0000,0.0008,1.6496,3.3000');
+  eq(csv[2].split(',').slice(0, 6), ['123456', '25', '7', '1', '3', ''], 'no 채널 맵: element left empty');
+  eq(csv.length, 4, 'two rows, then the end of the last one');
+  const raw = recordingRaw(recs);
+  eq([...raw[0]], [...PY_PACKET], 'byte for byte');
+  eq(new StreamParser().feed(Uint8Array.from([...raw[0], ...raw[1]])).length, 2, 'reads back');
 });
 
 // ---- boards

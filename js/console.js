@@ -10,8 +10,8 @@
 import { boardOrder, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from './chanmap.js';
 import { hasSerial, isDev, openLink } from './device.js';
 import {
-  CMD, FREQ_LABELS, N_ELEM, PEAK_SKIP, SAT_CODE, STATES, SWEEP_MS,
-  clampPrf, depthMm, faultNames, lineCsv, lineStats, sampleUs,
+  CMD, FREQ_LABELS, MAX_SAMPLES, N_ELEM, PEAK_SKIP, SAT_CODE, STATES, SWEEP_MS,
+  clampPrf, codeToV, depthMm, faultNames, lineCsv, lineStats, recordingCsv, recordingRaw, sampleUs,
 } from './usc4.js';
 import { esc, readJSON, saveFile, writeJSON } from './util.js';
 
@@ -20,6 +20,7 @@ const M_COLS = 300; // lines kept in the M-mode picture
 const LOG_MAX = 150;
 const ARM_CONFIRM_MS = 3000;
 const MAP_KEY = 'usbringup.chanmap'; // the 채널 맵 this device uses (its id; '' = the board's own numbers)
+const REC_MAX = 20000; // lines a recording keeps: about 20 MB in memory, 3 min at 100 Hz
 
 const con = {
   link: null,
@@ -51,6 +52,9 @@ const con = {
   mapId: readJSON(MAP_KEY, ''),
   mapEdit: false, // the map table is open
   mapSavedAt: 0,
+  yUnit: 'V', // the A graph's vertical axis: 'V' or 'code'
+  rec: { on: false, list: [], t0: 0 }, // 녹화: [{ ms, line, element }]
+  barKey: '',
 };
 
 // ---------------------------------------------------------------- 채널 맵 (chanmap.js)
@@ -222,7 +226,7 @@ export function consolePage(signedIn = true, channels = null) {
             </div>
           </div>
           <div class="con-row"><span class="lbl">모드</span><div class="con-seg con-modes">${modeBtns}</div>
-            <p class="con-help">A = 한 소자 한 줄 · M = 한 소자를 시간 순으로 (움직임) · B = 소자를 바꿔 가며 16줄 단면</p>
+            <p class="con-help">A = 한 소자 한 줄 · M = 한 소자를 시간 순으로 (움직임) · B = 소자를 바꿔 가며 16줄 단면. A와 M은 쏘는 건 같고 화면만 달라요</p>
           </div>
           <p class="small" id="con-pending"></p>
           <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
@@ -232,14 +236,26 @@ export function consolePage(signedIn = true, channels = null) {
         <section class="con-panel" aria-labelledby="con-ln-h">
           <div class="row">
             <h2 id="con-ln-h">받은 줄</h2><span class="spacer"></span>
+            <div class="con-seg con-axis" role="group" aria-label="세로축">
+              <button type="button" class="pick" data-act="con-yunit" data-unit="V">V</button>
+              <button type="button" class="pick" data-act="con-yunit" data-unit="code">코드</button>
+            </div>
             <div class="con-seg con-axis" role="group" aria-label="가로축">
               <button type="button" class="pick" data-act="con-axis" data-axis="us">µs</button>
               <button type="button" class="pick" data-act="con-axis" data-axis="mm">mm</button>
             </div>
-            <button type="button" data-act="con-save" id="con-save">CSV 저장</button>
+            <button type="button" data-act="con-save" id="con-save">이 줄 CSV</button>
           </div>
           <div class="con-plot-box" id="con-plot-box"><canvas id="con-plot" role="img" aria-label="받은 줄 그래프"></canvas></div>
           <div id="con-read">${readHtml()}</div>
+          <div class="con-btns con-rec">
+            <button type="button" data-act="con-rec" id="con-rec-btn">● 녹화</button>
+            <span class="small num" id="con-rec-info"></span><span class="spacer"></span>
+            <button type="button" data-act="con-rec-csv" id="con-rec-csv">CSV</button>
+            <button type="button" data-act="con-rec-raw" id="con-rec-raw">원본 .usc4</button>
+            <button type="button" data-act="con-rec-clear" id="con-rec-clear">지우기</button>
+          </div>
+          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us. 원본 = 받은 바이트 그대로 (host/usc4.py로 읽어요).</p>
         </section>
         <section class="con-panel" aria-labelledby="con-log-h">
           <div class="row"><h2 id="con-log-h">기록</h2><span class="spacer"></span><button type="button" data-act="con-clear">지우기</button></div>
@@ -308,8 +324,8 @@ function readHtml() {
   const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at).toFixed(1)} mm)` : '';
   return `
     <div class="con-tiles">
-      <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (앞 ${PEAK_SKIP}개 빼고)</span><span class="v">${st.peak}${where}${st.sat ? ' · SAT' : ''}</span></div>
-      <div class="con-tile"><span class="k">최저 · 평균</span><span class="v">${st.min} · ${Math.round(st.mean)}</span></div>
+      <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (앞 ${PEAK_SKIP}개 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
+      <div class="con-tile"><span class="k">최저 · 평균 (V)</span><span class="v">${codeToV(st.min).toFixed(3)} · ${codeToV(st.mean).toFixed(3)}</span></div>
       <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${chText(l.element)} · ${mhz} MHz · ${esc(l.mode)}</span></div>
       <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
       <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
@@ -341,13 +357,33 @@ function schedulePaint() {
 
 function paintAll() {
   if (!document.getElementById('con-root')) return;
-  setHtml('con-bar', barHtml());
+  // The bar holds 정지: redraw it only when the link changes, never under a click.
+  const key = `${Boolean(con.link)}|${con.link?.sim}|${con.connecting}`;
+  if (key !== con.barKey || !document.querySelector('#con-bar button')) {
+    con.barKey = key;
+    setHtml('con-bar', barHtml());
+  }
   setHtml('con-status', statusHtml());
   setHtml('con-read', readHtml());
   paintLog();
   paintControls();
+  paintRec();
   paintAge();
   drawPlot();
+}
+
+function paintRec() {
+  const r = con.rec;
+  const n = r.list.length;
+  const btn = document.getElementById('con-rec-btn');
+  if (!btn) return;
+  btn.textContent = r.on ? '■ 녹화 멈춤' : '● 녹화';
+  btn.classList.toggle('rec-on', r.on);
+  const info = document.getElementById('con-rec-info');
+  const text = n ? `${n.toLocaleString()}줄 · 원본 ${((n * 1012) / 1e6).toFixed(1)} MB${r.on ? ' · 녹화 중' : ''}` : (r.on ? '녹화 중 · 아직 0줄' : '녹화한 줄 없음');
+  if (info.textContent !== text) info.textContent = text;
+  for (const id of ['con-rec-csv', 'con-rec-raw']) document.getElementById(id).disabled = !n;
+  document.getElementById('con-rec-clear').disabled = !n || r.on;
 }
 
 function setHtml(id, html) {
@@ -377,6 +413,7 @@ function paintControls() {
   root.querySelectorAll('[data-act="con-el"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.e) === (w.el ?? s.el))));
   root.querySelectorAll('[data-act="con-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === (w.mode ?? s.mode))));
   root.querySelectorAll('[data-act="con-axis"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.axis === con.axis)));
+  root.querySelectorAll('[data-act="con-yunit"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.unit === con.yUnit)));
   const arm = document.getElementById('con-arm');
   if (arm) {
     const asking = Date.now() < con.armUntil;
@@ -480,7 +517,7 @@ function drawPlot() {
       ctx.moveTo(L, y);
       ctx.lineTo(L + pw, y);
       ctx.stroke();
-      ctx.fillText(String(v), L - 6, y);
+      ctx.fillText(con.yUnit === 'V' ? codeToV(v).toFixed(2) : String(v), L - 6, y);
     }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -488,6 +525,9 @@ function drawPlot() {
       const i = Math.round((k * (n - 1)) / 4);
       ctx.fillText(at(i), xOf(i), T + ph + 6);
     }
+    ctx.font = body; // the axis names have Korean: not in the mono face
+    ctx.textAlign = 'left';
+    ctx.fillText(con.yUnit === 'V' ? 'V (ADC 입력)' : 'ADC 코드', L + 4, T + 4);
     ctx.textAlign = 'right';
     ctx.fillText(unit, L + pw, T + ph + 19);
     ctx.strokeStyle = tok('--danger');
@@ -605,6 +645,13 @@ function onEvent(ev) {
     con.stats = lineStats(ev);
     if (ev.mode === 'M') pushM(ev);
     if (ev.mode === 'B') con.bCols[ev.element] = ev.samples;
+    if (con.rec.on) {
+      con.rec.list.push({ ms: Date.now() - con.rec.t0, line: ev, element: activeMap() ? elementOf(activeMap(), ev.element) : null });
+      if (con.rec.list.length >= REC_MAX) {
+        con.rec.on = false;
+        log('info', `녹화가 ${REC_MAX.toLocaleString()}줄이 돼서 멈췄어요. 저장한 뒤 지우면 다시 녹화돼요.`);
+      }
+    }
     if (Date.now() - con.lastLineLog > 1000) {
       con.lastLineLog = Date.now();
       log('in', `받은 줄 #${ev.sequence} · EL${ev.element} · 최고 ${con.stats.peak}${con.stats.sat ? ' · SAT' : ''}`);
@@ -775,6 +822,35 @@ function saveLine() {
   saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz.csv`, lineCsv(l), 'text/csv');
 }
 
+function toggleRec() {
+  const r = con.rec;
+  if (r.on) {
+    r.on = false;
+    log('info', `녹화 멈춤: ${r.list.length.toLocaleString()}줄`);
+  } else if (r.list.length >= REC_MAX) {
+    log('info', '녹화가 가득 찼어요. 저장한 뒤 지우고 다시 시작해요.');
+  } else {
+    if (!r.list.length) r.t0 = Date.now();
+    r.on = true;
+    log('info', r.list.length ? '녹화 이어서' : '녹화 시작');
+  }
+  paintRec();
+}
+
+const stamp = () => {
+  const d = new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+};
+
+function saveRecording(kind) {
+  const list = con.rec.list;
+  if (!list.length) return;
+  const name = `rec_${stamp()}_${list.length}lines`;
+  if (kind === 'csv') saveFile(`${name}.csv`, new Blob(recordingCsv(list), { type: 'text/csv' }), 'text/csv');
+  else saveFile(`${name}.usc4`, new Blob(recordingRaw(list), { type: 'application/octet-stream' }), 'application/octet-stream');
+}
+
 // ---------------------------------------------------------------- events from main.js
 // host: { saveChannels(maps) }, which writes config/channels.
 
@@ -815,6 +891,16 @@ export function consoleAction(act, el, host) {
       con.axis = el.dataset.axis;
       return paintAll();
     case 'con-save': return saveLine();
+    case 'con-yunit':
+      con.yUnit = el.dataset.unit;
+      return paintAll();
+    case 'con-rec': return toggleRec();
+    case 'con-rec-csv': return saveRecording('csv');
+    case 'con-rec-raw': return saveRecording('raw');
+    case 'con-rec-clear':
+      if (!confirm(`녹화한 ${con.rec.list.length.toLocaleString()}줄을 지울까요? 저장 안 한 건 없어져요.`)) return undefined;
+      con.rec.list = [];
+      return paintRec();
     case 'con-raw': return sendRaw();
     case 'con-clear':
       con.log = [];

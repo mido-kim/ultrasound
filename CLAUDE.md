@@ -96,6 +96,10 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   map is per device (`usbringup.chanmap`). With a map, B mode is sent as a
   `Q` list in array order. main.js passes the record to `consolePage()` and saves through
   `consoleHost.saveChannels`.
+- 녹화 (console.js `con.rec`) keeps parsed lines (max `REC_MAX`); `recordingCsv`
+  (one row per line, volts) and `recordingRaw` (re-encoded packets, equal to
+  what came in) are in usc4.js. Buttons the stream repaints often must keep
+  their element (update text and state in place), or a click is lost.
 - `js/fw-guide.js`: stage 4's folding parts (`STAGE_DETAIL`), shown by
   `stageSection`; steps can have `how` (the 방法 list) and stages `links`.
   Which folds are open lives in `openDetails` in main.js (kept across

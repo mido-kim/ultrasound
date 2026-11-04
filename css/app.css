@@ -545,6 +545,8 @@ button.arming { background: var(--warn-soft); border-color: var(--warn); color: 
 .lg.info .w { color: var(--muted); }
 .lg .w { min-width: 0; overflow-wrap: anywhere; }
 .con-raw { display: flex; gap: 6px; }
+.con-rec { border-top: 1px solid var(--line); padding-top: 10px; }
+button.rec-on { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); font-weight: 600; }
 
 @media (prefers-reduced-motion: no-preference) {
   .step { transition: background-color 0.2s; }

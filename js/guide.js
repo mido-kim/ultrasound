@@ -264,6 +264,7 @@ export const GUIDE_HTML = `
     <tr><td>TP902는 정상인데 J2-1이 0 V</td><td>J901 점퍼 위치 (1-2여야 STACK)</td></tr>
     <tr><td>−5 V가 −4.7 V보다 얕음</td><td>MAX829 flying C (C303) 납땜, JP303 LED 부하, U401 열패드(EP)가 −5 V에 납땜됐는지</td></tr>
     <tr><td>SW201을 열어도 TP403이 HIGH</td><td>U201 방향 · 납땜, R203 (PGOOD 풀다운), R205</td></tr>
+    <tr><td>D201 (PGOOD 초록 LED)이 저절로 꺼짐</td><td>SW201 점퍼가 덜 꽂힘, J2-3 (+3V3) 전압 · 배선, SW201 2번 핀 (PGOOD) 전압. 꺼져 있으면 송신만 막혀요 (안전한 쪽)</td></tr>
     <tr><td>LNA 출력 DC가 1.65 V가 아님</td><td>TP603 (VMID), R605 · R609 바이어스, U602 · U603 발진</td></tr>
     <tr><td>MUX 두 채널이 동시에 도통</td><td>펌웨어 SPI 바이트 순서, J1-9 (LE) 타이밍</td></tr>
     <tr><td>MUX 한 채널만 안 열림</td><td>U501 해당 NO 핀 납땜, J1001 해당 홀수 핀</td></tr>

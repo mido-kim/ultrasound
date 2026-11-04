@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 — 2026-11-04
+
+- 펌웨어 콘솔 **녹화**: while it is on, every line that comes in is kept
+  (any mode, up to 20,000 lines). Save as CSV (one row per line: the board's
+  burst time, PC ms, seq, frame, channel, array element, mode, MHz, ADC start
+  and sample step, SAT, then V0–V479 in volts) or as 원본 .usc4 (the packets
+  byte for byte, for host/usc4.py).
+- 이 줄 CSV adds adc_V next to the code. The A graph's vertical axis can show
+  volts (0–3.3 V, the ADC input) or codes; the readouts show both.
+- Mode legend and stage 4 ④: A and M fire the same way; only the console's
+  picture differs. 보드 지도 · 표: a row for D201 (PGOOD) going dark.
+- The console's bar (with 정지) is redrawn only when the link changes, so a
+  click on it never lands on a button that was just replaced.
+
 ## 0.9.0 — 2026-11-04
 
 - **채널 맵** in the 펌웨어 콘솔, between 상태 and 보내기: the array's element

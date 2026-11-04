@@ -229,9 +229,44 @@ export function lineStats(line) {
 export const sampleUs = (line, i) => line.adcDelayNs / 1000 + (i * 1e6) / line.fsHz;
 export const depthMm = (line, i, soundSpeed = 1480) => (soundSpeed * sampleUs(line, i)) / 2000;
 
-// One line as CSV for a spreadsheet.
+// The ADC reads 0–3.3 V (the VND042's own 3.3 V) as code 0–4095. What it reads
+// is the receiver's envelope output (TP605), not the element's RF voltage.
+export const ADC_VREF = 3.3;
+export const codeToV = (code) => (code * ADC_VREF) / 4095;
+const V_TEXT = Array.from({ length: 4096 }, (_, c) => codeToV(c).toFixed(4));
+
+// One line as CSV: time from the burst (and depth) against the ADC voltage.
 export function lineCsv(line, soundSpeed = 1480) {
-  const rows = ['sample,time_us,depth_mm,code'];
-  line.samples.forEach((v, i) => rows.push(`${i},${sampleUs(line, i).toFixed(4)},${depthMm(line, i, soundSpeed).toFixed(3)},${v}`));
+  const rows = ['sample,time_us,depth_mm,adc_code,adc_V'];
+  line.samples.forEach((v, i) => rows.push(`${i},${sampleUs(line, i).toFixed(4)},${depthMm(line, i, soundSpeed).toFixed(3)},${v},${V_TEXT[v]}`));
   return `${rows.join('\r\n')}\r\n`;
 }
+
+// A recording as CSV, one row per line: the board's time of the burst, the
+// PC's ms since the recording started, what was fired, then the voltage of
+// every sample (V0…). Sample n is adc_start_us + n × dt_us after the burst.
+// recs: [{ ms, line, element }]. Returned in pieces for a Blob: a long
+// recording is tens of MB.
+export function recordingCsv(recs) {
+  const n = recs.reduce((m, r) => Math.max(m, r.line.samples.length), 0);
+  const head = ['board_us', 'pc_ms', 'seq', 'frame', 'board_ch', 'element', 'mode', 'tx_MHz', 'adc_start_us', 'dt_us', 'sat',
+    ...Array.from({ length: n }, (_, i) => `V${i}`)];
+  const parts = [`${head.join(',')}\r\n`];
+  let rows = [];
+  for (const r of recs) {
+    const l = r.line;
+    const v = Array.from(l.samples, (c) => V_TEXT[c]);
+    rows.push(`${l.txTimeUs},${r.ms},${l.sequence},${l.frame},${l.element},${r.element ?? ''},${l.mode},${(l.txHz / 1e6).toFixed(3)},`
+      + `${(l.adcDelayNs / 1000).toFixed(3)},${(1e6 / l.fsHz).toFixed(4)},${l.flags & 1},${v.join(',')}`);
+    if (rows.length === 500) {
+      parts.push(`${rows.join('\r\n')}\r\n`);
+      rows = [];
+    }
+  }
+  if (rows.length) parts.push(`${rows.join('\r\n')}\r\n`);
+  return parts;
+}
+
+// A recording as the board sent it: the USC4 packets back to back, byte for
+// byte, for host/usc4.py (LineParser) or anything else later.
+export const recordingRaw = (recs) => recs.map((r) => encodeLine(r.line.samples, r.line));
