@@ -100,6 +100,9 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   map is per device (`usbringup.chanmap`). With a map, B mode is sent as a
   `Q` list in array order. main.js passes the record to `consolePage()` and saves through
   `consoleHost.saveChannels`.
+- B mode keeps each board channel's latest line in `con.bCols`; 프레임 CSV
+  (`frameCsv` in usc4.js) writes them as columns (time, depth, then volts per
+  element in the 채널 맵's order), the user's layout for making images later.
 - 녹화 (console.js `con.rec`) keeps parsed lines (max `REC_MAX`); `recordingCsv`
   (one row per line, volts) and `recordingRaw` (re-encoded packets, equal to
   what came in) are in usc4.js. Buttons the stream repaints often must keep

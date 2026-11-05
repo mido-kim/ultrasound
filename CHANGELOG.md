@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0 — 2026-11-05
+
+- 펌웨어 콘솔, B mode: the CSV button becomes **프레임 CSV** and saves the
+  frame on screen as a table. Column 1 time (µs), 2 depth (mm), then one
+  column per element in volts, in the 채널 맵's order (`E1_EL3_V` = element
+  1 on board channel EL3; `EL0_V` … without a map). An element whose latest
+  line is missing, older than the last frame, or taken at another frequency
+  is left empty, and the log says how many were filled.
+
 ## 0.11.0 — 2026-11-05
 
 - For firmware **v2** (`../firmware/us_control_v5_fw_v2`): the ADC starts

@@ -19,8 +19,8 @@ import {
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 import { boardOrder, channelsRecord, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from '../js/chanmap.js';
 import {
-  CMD, FREQ_HZ, StreamParser, burstAt, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, peakSkip,
-  preSamples, recordingCsv, recordingRaw, sampleUs,
+  CMD, FREQ_HZ, StreamParser, burstAt, clampPrf, crc32, depthMm, encodeLine, faultNames, frameCsv, frameInfo, lineCsv, lineStats,
+  parseStatus, peakSkip, preSamples, recordingCsv, recordingRaw, sampleUs,
 } from '../js/usc4.js';
 
 const results = [];
@@ -238,6 +238,24 @@ test('usc4: a recording saves as CSV rows in volts, and as the bytes that came i
   const raw = recordingRaw(recs);
   eq([...raw[0]], [...PY_PACKET], 'byte for byte');
   eq(new StreamParser().feed(Uint8Array.from([...raw[0], ...raw[1]])).length, 2, 'reads back');
+});
+
+test('usc4: a B frame saves as a table: time, depth, then one column of volts per element', () => {
+  const ln = (sequence, frame, v, adcDelayNs = -5260) => ({ sequence, frame, adcDelayNs, fsHz: 1600000, txHz: 3840000, samples: Uint16Array.of(v, v + 1) });
+  const cols = [
+    { name: 'E1_EL3_V', line: ln(10, 4, 100) }, // the newest: sets the time axis
+    { name: 'E2_EL5_V', line: ln(9, 3, 200) }, // the frame before: kept
+    { name: 'E3_EL9_V', line: null }, // nothing yet
+    { name: 'E4_EL0_V', line: ln(2, 1, 300) }, // older frame: left empty
+    { name: 'E5_EL7_V', line: ln(8, 4, 400, 4000) }, // other timing (frequency): left empty
+  ];
+  const rows = frameCsv(cols).split('\r\n');
+  eq(rows[0], 'time_us,depth_mm,E1_EL3_V,E2_EL5_V,E3_EL9_V,E4_EL0_V,E5_EL7_V');
+  eq(rows[1], '-5.2600,-3.892,0.0806,0.1612,,,');
+  eq(rows[2], '-4.6350,-3.430,0.0814,0.1620,,,');
+  eq(rows.length, 4, 'two samples, then the end of the last row');
+  eq(frameInfo(cols).filled, 2);
+  eq([frameCsv([{ name: 'EL0_V', line: null }]), frameInfo([]).filled], ['', 0]);
 });
 
 // ---- boards

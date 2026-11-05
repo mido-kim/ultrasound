@@ -253,6 +253,34 @@ export function lineCsv(line, soundSpeed = 1480) {
   return `${rows.join('\r\n')}\r\n`;
 }
 
+// One B-mode frame as a table: time and depth down the rows, then one column
+// per element, in volts, in the order given. cols: [{ name, line }], each the
+// element's latest line. The newest line sets the time axis; a column is left
+// empty when its line is missing, older than the frame before the newest,
+// or taken with other timing (another frequency).
+function frameParts(cols) {
+  const have = cols.map((c) => c.line).filter(Boolean);
+  if (!have.length) return null;
+  const ref = have.reduce((a, b) => (b.sequence > a.sequence ? b : a));
+  const fits = (l) => l && (l.frame === ref.frame || l.frame === ref.frame - 1)
+    && l.adcDelayNs === ref.adcDelayNs && l.fsHz === ref.fsHz && l.samples.length === ref.samples.length;
+  return { ref, use: cols.map((c) => (fits(c.line) ? c.line.samples : null)) };
+}
+export function frameCsv(cols, soundSpeed = 1480) {
+  const f = frameParts(cols);
+  if (!f) return '';
+  const rows = [['time_us', 'depth_mm', ...cols.map((c) => c.name)].join(',')];
+  for (let i = 0; i < f.ref.samples.length; i++) {
+    rows.push([sampleUs(f.ref, i).toFixed(4), depthMm(f.ref, i, soundSpeed).toFixed(3), ...f.use.map((s) => (s ? V_TEXT[s[i]] : ''))].join(','));
+  }
+  return `${rows.join('\r\n')}\r\n`;
+}
+// How many of the columns frameCsv fills, and the newest line it is timed by.
+export const frameInfo = (cols) => {
+  const f = frameParts(cols);
+  return f ? { filled: f.use.filter(Boolean).length, ref: f.ref } : { filled: 0, ref: null };
+};
+
 // A recording as CSV, one row per line: the board's time of the burst, the
 // PC's ms since the recording started, what was fired, then the voltage of
 // every sample (V0…). Sample n is adc_start_us + n × dt_us after the burst.

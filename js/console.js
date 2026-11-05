@@ -11,7 +11,8 @@ import { boardOrder, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } 
 import { hasSerial, isDev, openLink } from './device.js';
 import {
   CMD, FREQ_LABELS, MAX_SAMPLES, N_ELEM, SAT_CODE, STATES, SWEEP_MS,
-  burstAt, clampPrf, codeToV, depthMm, faultNames, lineCsv, lineStats, peakSkip, recordingCsv, recordingRaw, sampleUs,
+  burstAt, clampPrf, codeToV, depthMm, faultNames, frameCsv, frameInfo, lineCsv, lineStats, peakSkip, recordingCsv, recordingRaw,
+  sampleUs,
 } from './usc4.js';
 import { esc, readJSON, saveFile, writeJSON } from './util.js';
 
@@ -37,7 +38,7 @@ const con = {
   rate: 0,
   rateCount: 0,
   rateAt: 0,
-  bCols: new Array(N_ELEM).fill(null),
+  bCols: new Array(N_ELEM).fill(null), // B: the latest line of each board channel
   mLines: [], // samples of the last M_COLS lines in M mode
   log: [],
   logNextStatus: false, // true: log the next status line if it's new; 'always': log it anyway
@@ -432,7 +433,11 @@ function paintControls() {
     sweep.innerHTML = left > 0 ? `스윕 중… ${left}초` : 'MUX 스윕 <span class="key">T</span>';
   }
   const save = document.getElementById('con-save');
-  if (save) save.disabled = !con.line;
+  if (save) {
+    save.disabled = !con.line;
+    const label = con.line?.mode === 'B' ? '프레임 CSV' : '이 줄 CSV'; // B: every element, one column each
+    if (save.textContent !== label) save.textContent = label;
+  }
   const prf = document.getElementById('con-prf');
   if (prf && document.activeElement !== prf && w.prf) prf.value = w.prf;
   setHtml('con-pending', pendingHtml());
@@ -571,7 +576,7 @@ function drawPlot() {
   // in element order when a 채널 맵 is in use.
   const map = activeMap();
   const order = scanOrder(map);
-  const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : order.map((ch) => con.bCols[ch]);
+  const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : order.map((ch) => con.bCols[ch]?.samples ?? null);
   const { pic, top } = picture(cols, n, peakSkip(line));
   ctx.imageSmoothingEnabled = mode === 'M';
   if (cols.length) ctx.drawImage(pic, L + 1, T + 1, pw - 2, ph - 2);
@@ -673,7 +678,7 @@ function onEvent(ev) {
     con.line = ev;
     con.stats = lineStats(ev);
     if (ev.mode === 'M') pushM(ev);
-    if (ev.mode === 'B') con.bCols[ev.element] = ev.samples;
+    if (ev.mode === 'B') con.bCols[ev.element] = ev;
     if (con.rec.on) {
       con.rec.list.push({ ms: Date.now() - con.rec.t0, line: ev, element: activeMap() ? elementOf(activeMap(), ev.element) : null });
       if (con.rec.list.length >= REC_MAX) {
@@ -847,6 +852,7 @@ function sendRaw() {
 function saveLine() {
   const l = con.line;
   if (!l) return;
+  if (l.mode === 'B') return saveFrame();
   const e = activeMap() ? elementOf(activeMap(), l.element) : null;
   saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz.csv`, lineCsv(l), 'text/csv');
 }
@@ -866,10 +872,23 @@ function toggleRec() {
   paintRec();
 }
 
-const stamp = () => {
+// B mode: the frame on screen as a table. Column 1 time, 2 depth, then the
+// volts of each element in the 채널 맵's order (board channels without a map).
+function saveFrame() {
+  const map = activeMap();
+  const cols = scanOrder(map).map((ch) => ({ name: map ? `E${elementOf(map, ch)}_EL${ch}_V` : `EL${ch}_V`, line: con.bCols[ch] }));
+  const { filled, ref } = frameInfo(cols);
+  if (!ref) return;
+  saveFile(`bframe_${stamp(true)}_f${ref.frame}_${(ref.txHz / 1e6).toFixed(3)}MHz.csv`, frameCsv(cols), 'text/csv');
+  log('info', filled < cols.length
+    ? `프레임 CSV: 소자 ${cols.length}개 중 ${filled}개. 빈 칸은 최근 줄이 없는 소자예요`
+    : `프레임 CSV: 소자 ${filled}개`);
+}
+
+const stamp = (sec = false) => {
   const d = new Date();
   const p = (x) => String(x).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${sec ? p(d.getSeconds()) : ''}`;
 };
 
 function saveRecording(kind) {
