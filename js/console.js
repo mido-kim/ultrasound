@@ -22,6 +22,21 @@ const LOG_MAX = 150;
 const ARM_CONFIRM_MS = 3000;
 const MAP_KEY = 'usbringup.chanmap'; // the 채널 맵 this device uses (its id; '' = the board's own numbers)
 const REC_MAX = 20000; // lines a recording keeps: about 20 MB in memory, 3 min at 100 Hz
+const VIEW_KEY = 'usbringup.conview'; // the graph's time axis on this device (loadView)
+const C_DEFAULT = 1540; // m/s: soft tissue average, what the phantom is taken as
+const C_MIN = 100;
+const C_MAX = 10000;
+
+const clampC = (c) => Math.min(C_MAX, Math.max(C_MIN, Math.round(Number(c)) || C_DEFAULT));
+
+// The time axis, kept per device: its unit (µs from the burst, or depth in
+// mm), the part shown (lo, hi in that unit; null = the line's own start or
+// end) and the sound speed (m/s) that turns time into depth.
+function loadView() {
+  const v = readJSON(VIEW_KEY, {}) || {};
+  const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+  return { axis: v.axis === 'mm' ? 'mm' : 'us', lo: num(v.lo), hi: num(v.hi), c: clampC(v.c ?? C_DEFAULT) };
+}
 
 const con = {
   link: null,
@@ -45,7 +60,7 @@ const con = {
   lastLoggedStatus: '',
   lastLineLog: 0,
   poll: true,
-  axis: 'us',
+  view: loadView(),
   armUntil: 0,
   sweepUntil: 0,
   timers: [],
@@ -193,19 +208,6 @@ export function consolePage(signedIn = true, channels = null) {
     <div class="con-bar" id="con-bar">${barHtml()}</div>
     <div class="con-grid">
       <div class="con-col">
-        <section class="con-panel" aria-labelledby="con-st-h">
-          <div class="row"><h2 id="con-st-h">상태</h2><span class="spacer"></span><span class="small muted num" id="con-age"></span></div>
-          <div id="con-status">${statusHtml()}</div>
-          <div class="row">
-            <button type="button" data-act="con-status" class="needs-link">상태 다시 <span class="key">?</span></button>
-            <label class="con-check"><input type="checkbox" id="con-poll"${con.poll ? ' checked' : ''}> 1초마다 읽기</label>
-          </div>
-        </section>
-        <section class="con-panel" aria-labelledby="con-map-h">
-          <h2 id="con-map-h">채널 맵</h2>
-          <p class="con-help">어레이 소자 번호 순서대로, 각 소자가 꽂힌 보드 채널 (J1001 EL)을 골라요. 맵은 이름을 붙여 같이 저장되고, 이 노트북은 고른 맵을 기억해요. 빈 칸 = 소자 없음.</p>
-          <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
-        </section>
         <section class="con-panel" aria-labelledby="con-tx-h">
           <h2 id="con-tx-h">보내기</h2>
           <div class="con-row"><span class="lbl">송신</span>
@@ -222,7 +224,7 @@ export function consolePage(signedIn = true, channels = null) {
           <div class="con-row"><span class="lbl" id="con-el-lbl"></span><div class="con-els" id="con-els">${elButtonsHtml()}</div></div>
           <div class="con-row"><span class="lbl">PRF (1초에 쏘는 횟수)</span>
             <div class="con-btns">
-              <input type="number" id="con-prf" min="1" max="2000" step="1" value="${con.want?.prf ?? 10}" aria-label="PRF (Hz)"><span class="unit">Hz</span>
+              <input type="number" id="con-prf" min="1" max="2000" step="1" value="${esc(typed('con-prf', con.want?.prf ?? 10))}" aria-label="PRF (Hz)"><span class="unit">Hz</span>
               <button type="button" data-act="con-prf" class="needs-link">적용</button>
             </div>
           </div>
@@ -231,6 +233,19 @@ export function consolePage(signedIn = true, channels = null) {
           </div>
           <p class="small" id="con-pending"></p>
           <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
+        </section>
+        <section class="con-panel" aria-labelledby="con-st-h">
+          <div class="row"><h2 id="con-st-h">상태</h2><span class="spacer"></span><span class="small muted num" id="con-age"></span></div>
+          <div id="con-status">${statusHtml()}</div>
+          <div class="row">
+            <button type="button" data-act="con-status" class="needs-link">상태 다시 <span class="key">?</span></button>
+            <label class="con-check"><input type="checkbox" id="con-poll"${con.poll ? ' checked' : ''}> 1초마다 읽기</label>
+          </div>
+        </section>
+        <section class="con-panel" aria-labelledby="con-map-h">
+          <h2 id="con-map-h">채널 맵</h2>
+          <p class="con-help">어레이 소자 번호 순서대로, 각 소자가 꽂힌 보드 채널 (J1001 EL)을 골라요. 맵은 이름을 붙여 같이 저장되고, 이 노트북은 고른 맵을 기억해요. 빈 칸 = 소자 없음.</p>
+          <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
         </section>
       </div>
       <div class="con-col">
@@ -241,12 +256,24 @@ export function consolePage(signedIn = true, channels = null) {
               <button type="button" class="pick" data-act="con-yunit" data-unit="V">V</button>
               <button type="button" class="pick" data-act="con-yunit" data-unit="code">코드</button>
             </div>
-            <div class="con-seg con-axis" role="group" aria-label="가로축">
+            <div class="con-seg con-axis" role="group" aria-label="시간축 단위">
               <button type="button" class="pick" data-act="con-axis" data-axis="us">µs</button>
               <button type="button" class="pick" data-act="con-axis" data-axis="mm">mm</button>
             </div>
             <button type="button" data-act="con-save" id="con-save">이 줄 CSV</button>
           </div>
+          <div class="con-btns con-view">
+            <span class="lbl">보는 구간</span>
+            <input type="number" id="con-lo" step="any" value="${esc(typed('con-lo', fmtAxis(con.view.lo)))}" aria-label="보는 구간 최소">
+            <span class="unit">–</span>
+            <input type="number" id="con-hi" step="any" value="${esc(typed('con-hi', fmtAxis(con.view.hi)))}" aria-label="보는 구간 최대">
+            <span class="unit" id="con-view-unit">${con.view.axis === 'us' ? 'µs' : 'mm'}</span>
+            <button type="button" data-act="con-view-all">전체</button>
+            <span class="spacer"></span>
+            <label class="con-check" title="연조직 평균 1540 · 물 1480">음속
+              <input type="number" id="con-c" min="${C_MIN}" max="${C_MAX}" step="1" value="${esc(typed('con-c', con.view.c))}" aria-label="음속 (m/s)"><span class="unit">m/s</span></label>
+          </div>
+          <p class="small fail-t" id="con-view-warn"></p>
           <div class="con-plot-box" id="con-plot-box"><canvas id="con-plot" role="img" aria-label="받은 줄 그래프"></canvas></div>
           <div id="con-read">${readHtml()}</div>
           <div class="con-btns con-rec">
@@ -262,7 +289,7 @@ export function consolePage(signedIn = true, channels = null) {
           <div class="row"><h2 id="con-log-h">기록</h2><span class="spacer"></span><button type="button" data-act="con-clear">지우기</button></div>
           <div class="con-log" id="con-log" aria-live="polite">${logHtml()}</div>
           <div class="con-raw">
-            <input type="text" id="con-raw" placeholder="직접 보내기 (예: F3, E9, ?)" autocomplete="off" aria-label="직접 보낼 글자">
+            <input type="text" id="con-raw" value="${esc(typed('con-raw', ''))}" placeholder="직접 보내기 (예: F3, E9, ?)" autocomplete="off" aria-label="직접 보낼 글자">
             <button type="button" data-act="con-raw" class="needs-link">보내기</button>
           </div>
         </section>
@@ -322,7 +349,7 @@ function readHtml() {
   if (!l) return '<p class="muted small">아직 받은 줄이 없어요. 단발을 누르면 한 줄이 와요.</p>';
   const st = con.stats;
   const mhz = (l.txHz / 1e6).toFixed(3);
-  const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at).toFixed(1)} mm)` : '';
+  const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at, con.view.c).toFixed(1)} mm)` : '';
   return `
     <div class="con-tiles">
       <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (버스트 직후 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
@@ -331,7 +358,7 @@ function readHtml() {
       <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
       <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
     </div>
-    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 물 1480 m/s 기준</p>`;
+    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 음속 ${con.view.c} m/s로</p>`;
 }
 
 // v2 starts the ADC before the burst (adcDelayNs < 0), v1 after it.
@@ -419,7 +446,7 @@ function paintControls() {
   root.querySelectorAll('[data-act="con-freq"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === (w.f ?? s.f))));
   root.querySelectorAll('[data-act="con-el"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.e) === (w.el ?? s.el))));
   root.querySelectorAll('[data-act="con-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === (w.mode ?? s.mode))));
-  root.querySelectorAll('[data-act="con-axis"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.axis === con.axis)));
+  root.querySelectorAll('[data-act="con-axis"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.axis === con.view.axis)));
   root.querySelectorAll('[data-act="con-yunit"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.unit === con.yUnit)));
   const arm = document.getElementById('con-arm');
   if (arm) {
@@ -441,6 +468,41 @@ function paintControls() {
   const prf = document.getElementById('con-prf');
   if (prf && document.activeElement !== prf && w.prf) prf.value = w.prf;
   setHtml('con-pending', pendingHtml());
+  paintView();
+}
+
+// The 보는 구간 boxes (a box being typed in is left alone), their unit, the
+// line's own start and end as the hint in an empty box, and what's wrong.
+function paintView() {
+  const v = con.view;
+  const unit = v.axis === 'us' ? 'µs' : 'mm';
+  const u = document.getElementById('con-view-unit');
+  if (u && u.textContent !== unit) u.textContent = unit;
+  const l = con.line;
+  const ends = l ? lineEnds(l) : [null, null];
+  [['con-lo', v.lo, ends[0]], ['con-hi', v.hi, ends[1]]].forEach(([id, val, end]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const text = fmtAxis(val);
+    if (document.activeElement !== el && el.value !== text) el.value = text;
+    const hint = fmtAxis(end);
+    if (el.placeholder !== hint) el.placeholder = hint;
+  });
+  const c = document.getElementById('con-c');
+  if (c && document.activeElement !== c && c.value !== String(v.c)) c.value = v.c;
+  setHtml('con-view-warn', viewWarn());
+}
+
+function viewWarn() {
+  const { lo, hi } = con.view;
+  const l = con.line;
+  if ((lo !== null && hi !== null && lo >= hi) || (l && viewRange(l).bad)) return '최소가 최대보다 커요. 지금은 줄 전체를 보여요.';
+  if (!l) return '';
+  const [start, end] = lineEnds(l);
+  const r = viewRange(l);
+  return r.hi < start || r.lo > end
+    ? `이 구간엔 받은 값이 없어요. 줄은 ${fmtAxis(start)} – ${fmtAxis(end)} ${con.view.axis === 'us' ? 'µs' : 'mm'}예요.`
+    : '';
 }
 
 // What was picked here but isn't in the status line yet.
@@ -508,18 +570,32 @@ function drawPlot() {
     return;
   }
   const n = line.samples.length;
-  const unit = con.axis === 'us' ? 'µs (버스트 = 0)' : 'mm (물)';
+  const unit = con.view.axis === 'us' ? 'µs (버스트 = 0)' : `mm (${con.view.c} m/s)`;
   const burst = burstAt(line); // sample index of the burst; < 0 when the line starts after it (v1)
+  // The part of the time axis shown (보는 구간), in its unit; at(v, len) = px from where the axis starts.
+  const { lo, hi } = viewRange(line);
+  const a0 = axisVal(line, 0);
+  const per = axisVal(line, 1) - a0;
+  const at = (v, len) => ((v - lo) / (hi - lo)) * len;
+  const clipToPlot = () => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(L + 1, T + 1, pw - 2, ph - 2);
+    ctx.clip();
+  };
   ctx.font = mono;
   ctx.fillStyle = tok('--muted');
 
   if (mode === 'A') {
-    const xOf = (i) => L + (i / (n - 1)) * pw;
+    const xAt = (v) => L + at(v, pw);
+    const xOf = (i) => xAt(a0 + i * per);
     const yOf = (v) => T + ph - (v / 4095) * ph;
     // Grey: the burst and the 40 samples (25 µs) after it, which the peak leaves out.
-    const x0 = Math.max(L + 1, xOf(Math.max(0, burst)));
+    const x0 = xAt(Math.max(0, a0));
+    clipToPlot();
     ctx.fillStyle = tok('--code-bg');
     ctx.fillRect(x0, T + 1, xOf(peakSkip(line)) - x0, ph - 2);
+    ctx.restore();
     ctx.fillStyle = tok('--muted');
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -534,14 +610,15 @@ function drawPlot() {
     }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (const [i, text] of axisTicks(line, pw)) ctx.fillText(text, xOf(i), T + ph + 6);
+    for (const [v, text] of axisTicks(lo, hi, pw)) ctx.fillText(text, xAt(v), T + ph + 6);
     ctx.font = body; // the axis names have Korean: not in the mono face
     ctx.textAlign = 'left';
     ctx.fillText(con.yUnit === 'V' ? 'V (ADC 입력)' : 'ADC 코드', L + 4, T + 4);
     ctx.textAlign = 'right';
     ctx.fillText(unit, L + pw, T + ph + 19);
+    clipToPlot(); // the line itself: only the part shown
     if (burst >= 0) { // the burst (t = 0): v2 starts the ADC before it
-      const x = Math.round(xOf(burst)) + 0.5;
+      const x = Math.round(xAt(0)) + 0.5;
       ctx.strokeStyle = tok('--muted');
       ctx.setLineDash([2, 3]);
       ctx.beginPath();
@@ -569,21 +646,31 @@ function drawPlot() {
       ctx.arc(xOf(st.at), yOf(st.peak), 4, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
     return;
   }
 
   // M: time runs left → right, one column per line. B: one column per element,
-  // in element order when a 채널 맵 is in use.
+  // in element order when a 채널 맵 is in use. The time axis runs down; each
+  // sample is one row, centred on its time.
   const map = activeMap();
   const order = scanOrder(map);
   const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : order.map((ch) => con.bCols[ch]?.samples ?? null);
-  const { pic, top } = picture(cols, n, peakSkip(line));
+  const first = Math.max(0, Math.ceil((lo - a0) / per - 1e-9)); // the rows inside the part shown
+  const last = Math.min(n - 1, Math.floor((hi - a0) / per + 1e-9));
+  const { pic, top } = picture(cols, n, peakSkip(line), first, last);
   ctx.imageSmoothingEnabled = mode === 'M';
-  if (cols.length) ctx.drawImage(pic, L + 1, T + 1, pw - 2, ph - 2);
+  if (cols.length) {
+    const y0 = T + at(a0 - per / 2, ph);
+    const y1 = T + at(a0 + (n - 0.5) * per, ph);
+    clipToPlot();
+    ctx.drawImage(pic, L + 1, y0, pw - 2, y1 - y0);
+    ctx.restore();
+  }
   ctx.fillStyle = tok('--muted');
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  for (const [i, text] of axisTicks(line, ph, 45)) ctx.fillText(text, L - 6, T + (i / (n - 1)) * ph);
+  for (const [v, text] of axisTicks(lo, hi, ph, 45)) ctx.fillText(text, L - 6, T + at(v, ph));
   ctx.textBaseline = 'top';
   ctx.font = body;
   if (mode === 'M') {
@@ -602,29 +689,42 @@ function drawPlot() {
   }
 }
 
-// Round values (0, 50, 100 … µs or mm) inside the line, as [sample index,
-// text], at least gap px apart on an axis length px long. 0 is the burst.
-function axisTicks(line, length, gap = 70) {
-  const n = line.samples.length;
-  const val = (i) => (con.axis === 'us' ? sampleUs(line, i) : depthMm(line, i));
-  const lo = val(0);
-  const hi = val(n - 1);
-  const per = val(1) - lo;
+// Sample i on the time axis, in its unit: µs from the burst or depth in mm.
+const axisVal = (line, i) => (con.view.axis === 'us' ? sampleUs(line, i) : depthMm(line, i, con.view.c));
+const lineEnds = (line) => [axisVal(line, 0), axisVal(line, line.samples.length - 1)];
+
+// The part of the time axis shown: what was typed in 보는 구간, else the
+// line's own start and end. bad: min isn't below max, so the whole line.
+function viewRange(line) {
+  const [start, end] = lineEnds(line);
+  const lo = con.view.lo ?? start;
+  const hi = con.view.hi ?? end;
+  return lo < hi ? { lo, hi, bad: false } : { lo: start, hi: end, bad: true };
+}
+
+// A value on the time axis as typed in a box: 2 decimals at most, '' for none.
+const fmtAxis = (v) => (v === null || v === undefined ? '' : String(Math.round(v * 100) / 100));
+
+// Round values (… 0, 50, 100 … µs or mm) from lo to hi, as [value, text], at
+// least gap px apart on an axis length px long. 0 is the burst.
+function axisTicks(lo, hi, length, gap = 70) {
   const raw = (hi - lo) / Math.max(2, Math.min(6, Math.floor(length / gap)));
   const p = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw);
+  const digits = Math.max(0, -Math.floor(Math.log10(step) + 1e-9)); // 0.5 → 1 decimal
   const out = [];
-  for (let k = Math.ceil(lo / step); k * step <= hi; k++) out.push([(k * step - lo) / per, String(k * step)]);
+  for (let k = Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) out.push([k * step, (k * step).toFixed(digits)]);
   return out;
 }
 
 // A grey picture, one column per entry of cols (null = nothing yet, left
-// clear). White is the brightest echo in it (the burst and the TX
-// feedthrough, samples up to skip, are left out), so small echoes still
-// show; at least code 256.
-function picture(cols, n, skip) {
+// clear). White is the brightest echo in rows first..last (the part shown),
+// leaving out the burst and the TX feedthrough (samples up to skip) unless
+// nothing else is shown, so small echoes still show; at least code 256.
+function picture(cols, n, skip, first = 0, last = n - 1) {
+  const from = skip < last ? Math.max(first, skip + 1) : first;
   let top = 256;
-  for (const c of cols) if (c) for (let i = skip + 1; i < c.length; i++) if (c[i] > top) top = c[i];
+  for (const c of cols) if (c) for (let i = from; i <= last && i < c.length; i++) if (c[i] > top) top = c[i];
   const pic = Object.assign(document.createElement('canvas'), { width: cols.length, height: n });
   const g = pic.getContext('2d');
   const img = g.createImageData(cols.length, n);
@@ -849,12 +949,14 @@ function sendRaw() {
   send(new TextEncoder().encode(text), '직접 보냄', text);
 }
 
+// The CSVs keep the whole line; depth_mm is at the sound speed in the box,
+// which the file name carries (c1540 = 1540 m/s).
 function saveLine() {
   const l = con.line;
   if (!l) return;
   if (l.mode === 'B') return saveFrame();
   const e = activeMap() ? elementOf(activeMap(), l.element) : null;
-  saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz.csv`, lineCsv(l), 'text/csv');
+  saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz_c${con.view.c}.csv`, lineCsv(l, con.view.c), 'text/csv');
 }
 
 function toggleRec() {
@@ -879,7 +981,7 @@ function saveFrame() {
   const cols = scanOrder(map).map((ch) => ({ name: map ? `E${elementOf(map, ch)}_EL${ch}_V` : `EL${ch}_V`, line: con.bCols[ch] }));
   const { filled, ref } = frameInfo(cols);
   if (!ref) return;
-  saveFile(`bframe_${stamp(true)}_f${ref.frame}_${(ref.txHz / 1e6).toFixed(3)}MHz.csv`, frameCsv(cols), 'text/csv');
+  saveFile(`bframe_${stamp(true)}_f${ref.frame}_${(ref.txHz / 1e6).toFixed(3)}MHz_c${con.view.c}.csv`, frameCsv(cols, con.view.c), 'text/csv');
   log('info', filled < cols.length
     ? `프레임 CSV: 소자 ${cols.length}개 중 ${filled}개. 빈 칸은 최근 줄이 없는 소자예요`
     : `프레임 CSV: 소자 ${filled}개`);
@@ -890,6 +992,45 @@ const stamp = (sec = false) => {
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${sec ? p(d.getSeconds()) : ''}`;
 };
+
+// ---------------------------------------------------------------- 보는 구간 · 음속
+
+const saveView = () => writeJSON(VIEW_KEY, con.view);
+
+// A box being typed in keeps its text when render() redraws the page.
+function typed(id, value) {
+  const el = document.getElementById(id);
+  return el && el === document.activeElement ? el.value : value;
+}
+
+// 최소 or 최대 in the axis unit; an empty box = the line's own end.
+function setView(key, text) {
+  const x = String(text).trim() === '' ? null : Number(text);
+  con.view[key] = Number.isFinite(x) ? x : null;
+  saveView();
+  paintAll();
+}
+
+// The sound speed turns time into depth: the mm axis, the readout and the
+// CSVs follow it. A window typed in mm stays in mm, one in µs stays in µs.
+function setSpeed(el) {
+  con.view.c = clampC(el.value);
+  el.value = con.view.c;
+  saveView();
+  paintAll();
+}
+
+// µs ↔ mm: the same part of the line stays on screen, in the other unit.
+function setAxis(axis) {
+  const v = con.view;
+  if (axis === v.axis) return;
+  const conv = axis === 'mm' ? (us) => (us * v.c) / 2000 : (mm) => (mm * 2000) / v.c;
+  if (v.lo !== null) v.lo = conv(v.lo);
+  if (v.hi !== null) v.hi = conv(v.hi);
+  v.axis = axis;
+  saveView();
+  paintAll();
+}
 
 function saveRecording(kind) {
   const list = con.rec.list;
@@ -935,8 +1076,11 @@ export function consoleAction(act, el, host) {
     case 'con-el': return pick('el', Number(el.dataset.e));
     case 'con-mode': return pick('mode', el.dataset.m);
     case 'con-prf': return applyPrf();
-    case 'con-axis':
-      con.axis = el.dataset.axis;
+    case 'con-axis': return setAxis(el.dataset.axis);
+    case 'con-view-all':
+      con.view.lo = null;
+      con.view.hi = null;
+      saveView();
       return paintAll();
     case 'con-save': return saveLine();
     case 'con-yunit':
@@ -958,6 +1102,8 @@ export function consoleAction(act, el, host) {
 }
 
 export function consoleChange(t, host) {
+  if (t.id === 'con-lo' || t.id === 'con-hi') return setView(t.id === 'con-lo' ? 'lo' : 'hi', t.value);
+  if (t.id === 'con-c') return setSpeed(t);
   if (t.id === 'con-poll') con.poll = t.checked;
   if (t.id === 'con-map') useMap(t.value);
   const map = activeMap();
@@ -984,6 +1130,9 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.target.id === 'con-prf') applyPrf();
     else sendRaw();
+  } else if (e.key === 'Enter' && ['con-lo', 'con-hi', 'con-c'].includes(e.target.id)) {
+    e.preventDefault();
+    consoleChange(e.target); // same as leaving the box
   }
 });
 // Leaving or reloading the page: try to leave the board stopped.

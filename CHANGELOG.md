@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 — 2026-11-05
+
+- 펌웨어 콘솔: **보내기** (송신 · 주파수 · 소자 · PRF · 모드) moves to the top
+  of the left column, next to the graph; 상태 and 채널 맵 follow it.
+- 받은 줄 **보는 구간**: 최소 and 최대 of the time axis, in its unit (µs or
+  mm). An empty box is the line's own start or end (shown faintly in it);
+  전체 clears both. A and M · B (their vertical axis) show only that part, and
+  the M · B picture's white is the brightest echo inside it. µs ↔ mm keeps the
+  same part on screen. CSVs still hold the whole line.
+- **음속** box (m/s, default 1540 = soft tissue average, for the tissue
+  phantom; was water 1480, fixed): the mm axis, the peak readout and the
+  depth_mm column of both CSVs use it, and the CSV file names carry it
+  (`_c1540`). The unit, part shown and sound speed are kept per device.
+
 ## 0.12.0 — 2026-11-05
 
 - 펌웨어 콘솔, B mode: the CSV button becomes **프레임 CSV** and saves the

@@ -254,6 +254,8 @@ test('usc4: a B frame saves as a table: time, depth, then one column of volts pe
   eq(rows[1], '-5.2600,-3.892,0.0806,0.1612,,,');
   eq(rows[2], '-4.6350,-3.430,0.0814,0.1620,,,');
   eq(rows.length, 4, 'two samples, then the end of the last row');
+  eq(frameCsv(cols, 1540).split('\r\n')[1].split(',').slice(0, 2), ['-5.2600', '-4.050'], 'depth at the sound speed given (soft tissue)');
+  eq(lineCsv(cols[0].line, 1540).split('\r\n')[1].split(',')[2], '-4.050');
   eq(frameInfo(cols).filled, 2);
   eq([frameCsv([{ name: 'EL0_V', line: null }]), frameInfo([]).filled], ['', 0]);
 });

@@ -100,6 +100,11 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   map is per device (`usbringup.chanmap`). With a map, B mode is sent as a
   `Q` list in array order. main.js passes the record to `consolePage()` and saves through
   `consoleHost.saveChannels`.
+- The graph's time axis is `con.view` (`usbringup.conview`, per device):
+  `axis` 'us' | 'mm', `lo`/`hi` (보는 구간, in that unit; null = the line's
+  own end) and `c`, the sound speed for every mm value (axis, readout, CSV
+  depth; default 1540 m/s, soft tissue, the user's phantom). Toggling the
+  unit converts lo/hi; changing c leaves them. CSVs keep the whole line.
 - B mode keeps each board channel's latest line in `con.bCols`; 프레임 CSV
   (`frameCsv` in usc4.js) writes them as columns (time, depth, then volts per
   element in the 채널 맵's order), the user's layout for making images later.

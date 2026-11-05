@@ -535,6 +535,9 @@ button.arming { background: var(--warn-soft); border-color: var(--warn); color: 
 .key { font-family: var(--f-mono); font-size: 12px; padding: 0 5px; border: 1px solid currentColor; border-radius: 4px; opacity: 0.75; }
 .con input[type="number"] { font: inherit; font-family: var(--f-mono); font-size: 14px; width: 7.5em; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); }
 .con-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.con-view .lbl { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.con .con-view input[type="number"] { width: 5.5em; padding: 5px 7px; }
+#con-view-warn:empty { display: none; }
 .con-plot-box { min-width: 0; }
 #con-plot { display: block; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 .con-log { max-height: 280px; overflow: auto; display: grid; align-content: start; gap: 2px; font-size: 13px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
