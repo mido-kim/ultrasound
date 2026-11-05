@@ -19,8 +19,8 @@ import {
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 import { boardOrder, channelsRecord, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from '../js/chanmap.js';
 import {
-  CMD, FREQ_HZ, StreamParser, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, recordingCsv,
-  recordingRaw, sampleUs,
+  CMD, FREQ_HZ, StreamParser, burstAt, clampPrf, crc32, depthMm, encodeLine, faultNames, lineCsv, lineStats, parseStatus, peakSkip,
+  preSamples, recordingCsv, recordingRaw, sampleUs,
 } from '../js/usc4.js';
 
 const results = [];
@@ -113,7 +113,7 @@ test('steps: a 방법 list is lines of text, and only ASCII goes in code marks',
   if (!STEPS.filter((s) => s.stage === 4).every((s) => s.how)) throw new Error('a stage 4 step has no 방법');
 });
 
-// ---- firmware link (usc4.js), checked against host/usc4.py and main.c
+// ---- firmware link (usc4.js), checked against host/usc4.py, host_v2/usc4.py and main.c
 const hex = (h) => Uint8Array.from(h.match(/../g), (x) => parseInt(x, 16));
 // usc4.encode_line([0, 1, 2047, 4095], sequence=7, frame=1, element=3, mode='B', config=42,
 //   fs_hz=1600000, tx_hz=3840000, tx_time_us=123456, adc_delay_ns=6000, flags=1)
@@ -179,6 +179,34 @@ test('usc4: command bytes, PRF limits, peak after the first 40 samples, time and
   if (!near(depthMm(line, 0), 4.44)) throw new Error('depth (as usc4.py: 6 µs at 1480 m/s = 4.44 mm)');
   eq(lineCsv({ ...line, samples: [1, 2] }).split('\r\n').slice(0, 2), ['sample,time_us,depth_mm,adc_code,adc_V', '0,6.0000,4.440,1,0.0008']);
   eq(FREQ_HZ.length, 8);
+});
+
+// host_v2/usc4.encode_line([0, 1, 2047, 4095], sequence=8, frame=2, element=5, mode='A', config=43,
+//   fs_hz=1600000, tx_hz=3840000, tx_time_us=123456, adc_delay_ns=-5260)  (firmware v2 at 3.840 MHz)
+const PY_PACKET_V2 = hex('5553433401013000080000000200000005410c0004002b00006a180000983a0040e201000000000074ebffff0800000000000100ff07ff0f4a61aa76');
+
+test('usc4: firmware v2 starts the ADC before the burst (signed delay); the peak skips the burst', () => {
+  const fields = {
+    sequence: 8, frame: 2, element: 5, mode: 'A', flags: 0, config: 43, fsHz: 1600000, txHz: 3840000, txTimeUs: 123456, adcDelayNs: -5260,
+  };
+  eq([...encodeLine([0, 1, 2047, 4095], fields)], [...PY_PACKET_V2], 'same bytes as host_v2/usc4.py');
+  const [ev] = new StreamParser().feed(PY_PACKET_V2);
+  eq(ev.adcDelayNs, -5260, 'read back negative');
+  const samples = new Array(480).fill(100);
+  samples[9] = 4095; // the burst
+  samples[48] = 3000; // its feedthrough, still inside the 40 after it
+  samples[200] = 700;
+  const line = { samples, flags: 0, adcDelayNs: -5260, fsHz: 1600000 };
+  eq([preSamples(line), peakSkip(line)], [8, 48], 'as main.c v2: i > 40 + PRE_SAMPLES');
+  eq([lineStats(line).peak, lineStats(line).at], [700, 200]);
+  if (!near(burstAt(line), 8.416)) throw new Error('burst position');
+  if (!near(sampleUs(line, 0), -5.26)) throw new Error('time before the burst');
+  eq(lineCsv({ ...line, samples: [100] }).split('\r\n')[1], '0,-5.2600,-3.892,100,0.0806', 'CSV: negative time and depth');
+  eq(recordingCsv([{ ms: 0, line: ev, element: null }]).join('').split('\r\n')[1].split(',')[8], '-5.260', 'adc_start_us');
+  // main.c v2 adc_pre_ticks[]: every frequency leaves 8 whole samples before the burst
+  eq([532, 484, 505, 508, 520, 523, 538, 484].map((t) => preSamples({ adcDelayNs: -Math.floor((t * 1000) / 96), fsHz: 1600000 })), new Array(8).fill(8));
+  const v1 = { samples, flags: 0, adcDelayNs: 4000, fsHz: 1600000 };
+  eq([preSamples(v1), peakSkip(v1), burstAt(v1) < 0], [0, 40, true], 'v1 lines as before');
 });
 
 test('채널 맵: array number order → board channels, numbering base, clashes, new maps', () => {

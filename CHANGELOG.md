@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0 — 2026-11-05
+
+- For firmware **v2** (`../firmware/us_control_v5_fw_v2`): the ADC starts
+  about 5 µs before the burst, so a line shows the burst itself at 0 µs.
+  The packet's ADC start is read as a signed number (v2's is negative; v1's
+  lines read as before).
+- 받은 줄: round axis values (0 · 50 · 100 … µs or mm), a dashed line at the
+  burst, grey for the burst and the 25 µs after it (left out of the peak, as
+  the firmware does: v2 also leaves out the 8 samples before the burst). The
+  readout says "ADC 시작 = 버스트 5.3 µs 전" (v2) or "버스트 뒤 4.0 µs" (v1).
+  CSV times and depths before the burst are negative.
+- Stage 4: ⑥ 타이밍 and ⑦ 스코프 for v2 (check the burst tail on TP401
+  again), upload from `us_control_v5_fw_v2`, the viewer from `host_v2`.
+  Stage 5 recovery time (x5.blank): there's no blank_us[] in v2; record it.
+- The dev simulator follows v2.
+
 ## 0.10.0 — 2026-11-04
 
 - 펌웨어 콘솔 **녹화**: while it is on, every line that comes in is kept

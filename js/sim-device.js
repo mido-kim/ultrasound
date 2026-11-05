@@ -1,12 +1,14 @@
-// Development only (localhost ?dev): a pretend VND042 running the v5 firmware,
-// so the console can be tried without a board. It keeps the firmware's rules
-// (main.c): settings wait for the next shot, R and X only from 정지, T only
-// while stopped and nothing answers for 6.4 s meanwhile, S works any time. It
-// fires at the PRF, but at most 50 lines a second.
+// Development only (localhost ?dev): a pretend VND042 running the v5 firmware
+// v2, so the console can be tried without a board. It keeps the firmware's
+// rules (main.c): settings wait for the next shot, R and X only from 정지, T
+// only while stopped and nothing answers for 6.4 s meanwhile, S works any
+// time. It fires at the PRF, but at most 50 lines a second.
 
 import { FREQ_HZ, N_ELEM, SWEEP_MS, encodeLine } from './usc4.js';
 
-const BLANK_US = [6, 5, 4, 4, 3, 3, 3, 3];
+// v2's adc_pre_ticks[]: the ADC starts this many 96 MHz ticks before the burst.
+const PRE_TICKS = [532, 484, 505, 508, 520, 523, 538, 484];
+const delayNs = (f) => -Math.floor((PRE_TICKS[f] * 1000) / 96);
 
 export function simPort() {
   let push = () => {};
@@ -30,15 +32,18 @@ export function simPort() {
     push(new TextEncoder().encode(line));
   };
 
-  // Envelope-like samples: TX feedthrough at the start, an echo whose depth
-  // follows the element, noise on a small baseline.
-  const samples = (el) => {
+  // Envelope-like samples, in time from the burst: quiet before it, the TX
+  // feedthrough at it, an echo whose depth follows the element, noise on a
+  // small baseline.
+  const samples = (el, f) => {
     const out = new Uint16Array(480);
-    const center = 120 + el * 18;
+    const t0 = delayNs(f) / 1000; // µs of sample 0
+    const center = 80 + el * 11.25; // µs
     const amp = 420 + 120 * Math.sin(performance.now() / 700);
     for (let i = 0; i < out.length; i++) {
-      const feed = i < 30 ? 2600 * Math.exp(-i / 6) : 0;
-      const echo = amp * Math.exp(-(((i - center) / 7) ** 2));
+      const t = t0 + i * 0.625;
+      const feed = t >= 0 && t < 20 ? 3800 * Math.exp(-t / 3.5) : 0;
+      const echo = amp * Math.exp(-(((t - center) / 4.4) ** 2));
       out[i] = Math.max(0, Math.min(4095, Math.round(110 + feed + echo + (Math.random() - 0.5) * 24)));
     }
     return out;
@@ -54,10 +59,10 @@ export function simPort() {
       if (s.prf !== prf) restartTimer();
     }
     const el = s.mode === 'B' ? s.list[s.pos] : s.el;
-    const pkt = encodeLine(samples(el), {
+    const pkt = encodeLine(samples(el, s.f), {
       sequence: s.seq, frame: s.frame, element: el, mode: s.mode, config: s.cfg,
       fsHz: 1600000, txHz: FREQ_HZ[s.f], txTimeUs: Math.round((performance.now() - t0) * 1000) + 50,
-      adcDelayNs: Math.round(BLANK_US[s.f] * 1000),
+      adcDelayNs: delayNs(s.f),
     });
     s.seq++;
     if (s.mode === 'B' && ++s.pos >= s.list.length) {

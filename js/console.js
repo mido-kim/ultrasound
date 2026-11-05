@@ -10,8 +10,8 @@
 import { boardOrder, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from './chanmap.js';
 import { hasSerial, isDev, openLink } from './device.js';
 import {
-  CMD, FREQ_LABELS, MAX_SAMPLES, N_ELEM, PEAK_SKIP, SAT_CODE, STATES, SWEEP_MS,
-  clampPrf, codeToV, depthMm, faultNames, lineCsv, lineStats, recordingCsv, recordingRaw, sampleUs,
+  CMD, FREQ_LABELS, MAX_SAMPLES, N_ELEM, SAT_CODE, STATES, SWEEP_MS,
+  burstAt, clampPrf, codeToV, depthMm, faultNames, lineCsv, lineStats, peakSkip, recordingCsv, recordingRaw, sampleUs,
 } from './usc4.js';
 import { esc, readJSON, saveFile, writeJSON } from './util.js';
 
@@ -255,7 +255,7 @@ export function consolePage(signedIn = true, channels = null) {
             <button type="button" data-act="con-rec-raw" id="con-rec-raw">원본 .usc4</button>
             <button type="button" data-act="con-rec-clear" id="con-rec-clear">지우기</button>
           </div>
-          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us. 원본 = 받은 바이트 그대로 (host/usc4.py로 읽어요).</p>
+          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us (버스트 = 0). 원본 = 받은 바이트 그대로 (host_v2/usc4.py로 읽어요).</p>
         </section>
         <section class="con-panel" aria-labelledby="con-log-h">
           <div class="row"><h2 id="con-log-h">기록</h2><span class="spacer"></span><button type="button" data-act="con-clear">지우기</button></div>
@@ -324,13 +324,19 @@ function readHtml() {
   const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at).toFixed(1)} mm)` : '';
   return `
     <div class="con-tiles">
-      <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (앞 ${PEAK_SKIP}개 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
+      <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (버스트 직후 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
       <div class="con-tile"><span class="k">최저 · 평균 (V)</span><span class="v">${codeToV(st.min).toFixed(3)} · ${codeToV(st.mean).toFixed(3)}</span></div>
       <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${chText(l.element)} · ${mhz} MHz · ${esc(l.mode)}</span></div>
       <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
       <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
     </div>
-    <p class="small muted">ADC 시작 = 버스트 뒤 ${(l.adcDelayNs / 1000).toFixed(1)} µs · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 물 1480 m/s 기준</p>`;
+    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 물 1480 m/s 기준</p>`;
+}
+
+// v2 starts the ADC before the burst (adcDelayNs < 0), v1 after it.
+function adcStartText(l) {
+  const us = l.adcDelayNs / 1000;
+  return us < 0 ? `ADC 시작 = 버스트 ${(-us).toFixed(1)} µs 전` : `ADC 시작 = 버스트 뒤 ${us.toFixed(1)} µs`;
 }
 
 function logHtml() {
@@ -497,16 +503,18 @@ function drawPlot() {
     return;
   }
   const n = line.samples.length;
-  const at = (i) => (con.axis === 'us' ? sampleUs(line, i).toFixed(0) : depthMm(line, i).toFixed(0));
-  const unit = con.axis === 'us' ? 'µs (버스트부터)' : 'mm (물)';
+  const unit = con.axis === 'us' ? 'µs (버스트 = 0)' : 'mm (물)';
+  const burst = burstAt(line); // sample index of the burst; < 0 when the line starts after it (v1)
   ctx.font = mono;
   ctx.fillStyle = tok('--muted');
 
   if (mode === 'A') {
     const xOf = (i) => L + (i / (n - 1)) * pw;
     const yOf = (v) => T + ph - (v / 4095) * ph;
+    // Grey: the burst and the 40 samples (25 µs) after it, which the peak leaves out.
+    const x0 = Math.max(L + 1, xOf(Math.max(0, burst)));
     ctx.fillStyle = tok('--code-bg');
-    ctx.fillRect(L + 1, T + 1, xOf(PEAK_SKIP) - L, ph - 2);
+    ctx.fillRect(x0, T + 1, xOf(peakSkip(line)) - x0, ph - 2);
     ctx.fillStyle = tok('--muted');
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -521,15 +529,22 @@ function drawPlot() {
     }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (let k = 0; k <= 4; k++) {
-      const i = Math.round((k * (n - 1)) / 4);
-      ctx.fillText(at(i), xOf(i), T + ph + 6);
-    }
+    for (const [i, text] of axisTicks(line, pw)) ctx.fillText(text, xOf(i), T + ph + 6);
     ctx.font = body; // the axis names have Korean: not in the mono face
     ctx.textAlign = 'left';
     ctx.fillText(con.yUnit === 'V' ? 'V (ADC 입력)' : 'ADC 코드', L + 4, T + 4);
     ctx.textAlign = 'right';
     ctx.fillText(unit, L + pw, T + ph + 19);
+    if (burst >= 0) { // the burst (t = 0): v2 starts the ADC before it
+      const x = Math.round(xOf(burst)) + 0.5;
+      ctx.strokeStyle = tok('--muted');
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, T + 1);
+      ctx.lineTo(x, T + ph - 1);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.strokeStyle = tok('--danger');
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -557,16 +572,13 @@ function drawPlot() {
   const map = activeMap();
   const order = scanOrder(map);
   const cols = mode === 'M' ? [...new Array(M_COLS - con.mLines.length).fill(null), ...con.mLines] : order.map((ch) => con.bCols[ch]);
-  const { pic, top } = picture(cols, n);
+  const { pic, top } = picture(cols, n, peakSkip(line));
   ctx.imageSmoothingEnabled = mode === 'M';
   if (cols.length) ctx.drawImage(pic, L + 1, T + 1, pw - 2, ph - 2);
   ctx.fillStyle = tok('--muted');
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  for (let k = 0; k <= 4; k++) {
-    const i = Math.round((k * (n - 1)) / 4);
-    ctx.fillText(at(i), L - 6, T + (k / 4) * ph);
-  }
+  for (const [i, text] of axisTicks(line, ph, 45)) ctx.fillText(text, L - 6, T + (i / (n - 1)) * ph);
   ctx.textBaseline = 'top';
   ctx.font = body;
   if (mode === 'M') {
@@ -585,12 +597,29 @@ function drawPlot() {
   }
 }
 
+// Round values (0, 50, 100 … µs or mm) inside the line, as [sample index,
+// text], at least gap px apart on an axis length px long. 0 is the burst.
+function axisTicks(line, length, gap = 70) {
+  const n = line.samples.length;
+  const val = (i) => (con.axis === 'us' ? sampleUs(line, i) : depthMm(line, i));
+  const lo = val(0);
+  const hi = val(n - 1);
+  const per = val(1) - lo;
+  const raw = (hi - lo) / Math.max(2, Math.min(6, Math.floor(length / gap)));
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw);
+  const out = [];
+  for (let k = Math.ceil(lo / step); k * step <= hi; k++) out.push([(k * step - lo) / per, String(k * step)]);
+  return out;
+}
+
 // A grey picture, one column per entry of cols (null = nothing yet, left
-// clear). White is the brightest echo in it (the TX feedthrough at the start
-// is left out), so small echoes still show; at least code 256.
-function picture(cols, n) {
+// clear). White is the brightest echo in it (the burst and the TX
+// feedthrough, samples up to skip, are left out), so small echoes still
+// show; at least code 256.
+function picture(cols, n, skip) {
   let top = 256;
-  for (const c of cols) if (c) for (let i = PEAK_SKIP + 1; i < c.length; i++) if (c[i] > top) top = c[i];
+  for (const c of cols) if (c) for (let i = skip + 1; i < c.length; i++) if (c[i] > top) top = c[i];
   const pic = Object.assign(document.createElement('canvas'), { width: cols.length, height: n });
   const g = pic.getContext('2d');
   const img = g.createImageData(cols.length, n);

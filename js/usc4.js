@@ -1,14 +1,16 @@
-// What the US Control v5 firmware (firmware/us_control_v5_fw) sends over USB:
-// USC4 line packets (48-byte header + 12-bit samples + zlib CRC-32, little-
-// endian, the same layout as host/usc4.py) mixed with ASCII status lines that
-// start with "#st=". Also the command bytes it takes. No DOM, no serial port:
-// tests.js checks all of it.
+// What the US Control v5 firmware (firmware/us_control_v5_fw_v2, and v1 in
+// us_control_v5_fw) sends over USB: USC4 line packets (48-byte header + 12-bit
+// samples + zlib CRC-32, little-endian, the same layout as host_v2/usc4.py)
+// mixed with ASCII status lines that start with "#st=". Also the command bytes
+// it takes. No DOM, no serial port: tests.js checks all of it.
+// adcDelayNs (header offset 40) is signed: v2 starts the ADC before the burst
+// (about −5 µs), v1 started it 3–6 µs after.
 
 export const N_ELEM = 16;
 export const MAX_SAMPLES = 480;
 export const HEADER = 48;
 export const SAT_CODE = 4090; // firmware SAT_HIGH: flags bit 0 when the peak reaches it
-export const PEAK_SKIP = 40; // the firmware's peak skips the first 40 samples (TX feedthrough)
+export const PEAK_SKIP = 40; // the firmware's peak skips 40 samples after the burst (TX feedthrough)
 export const SWEEP_MS = N_ELEM * 400; // T: 0.4 s per element, the main loop is busy meanwhile
 
 // F n: the firmware's tx_hz_table (96 MHz timer / period).
@@ -64,7 +66,7 @@ export function encodeLine(samples, {
   v.setUint32(28, txHz, true);
   v.setUint32(32, txTimeUs % 2 ** 32, true);
   v.setUint32(36, Math.floor(txTimeUs / 2 ** 32), true);
-  v.setUint32(40, adcDelayNs, true);
+  v.setInt32(40, adcDelayNs, true);
   v.setUint16(44, 2 * n, true);
   v.setUint16(46, 0, true);
   for (let i = 0; i < n; i++) v.setUint16(HEADER + 2 * i, samples[i], true);
@@ -73,7 +75,7 @@ export function encodeLine(samples, {
 }
 
 // The header at bytes[pos], or null when it isn't a valid one (same checks as
-// host/usc4.py, so a stray "USC4" inside sample data is not taken for a packet).
+// host_v2/usc4.py, so a stray "USC4" inside sample data is not taken for a packet).
 function readHeader(b, pos) {
   const v = new DataView(b.buffer, b.byteOffset + pos, HEADER);
   const h = {
@@ -87,7 +89,7 @@ function readHeader(b, pos) {
     fsHz: v.getUint32(24, true),
     txHz: v.getUint32(28, true),
     txTimeUs: v.getUint32(32, true) + v.getUint32(36, true) * 2 ** 32,
-    adcDelayNs: v.getUint32(40, true),
+    adcDelayNs: v.getInt32(40, true),
   };
   const ok = v.getUint8(4) === 1 && v.getUint8(5) === 1 && v.getUint16(6, true) === HEADER
     && h.element < N_ELEM && 'AMB'.includes(h.mode) && v.getUint8(18) === 12 && !(h.flags & ~7)
@@ -204,17 +206,26 @@ export const CMD = {
 
 export const clampPrf = (hz) => Math.min(2000, Math.max(1, Math.round(Number(hz)) || 1));
 
+// Samples before the burst (v2: 8; v1 started after it: 0), and the last
+// sample the firmware's peak leaves out: the burst and the 40 after it.
+export const preSamples = (line) => Math.max(0, Math.floor((-line.adcDelayNs * line.fsHz) / 1e9));
+export const peakSkip = (line) => PEAK_SKIP + preSamples(line);
+// Where the burst starts, as a (fractional) sample index: < 0 for v1.
+export const burstAt = (line) => (-line.adcDelayNs * line.fsHz) / 1e9;
+
 // The numbers the console shows for one line. peak/at: the firmware's own
-// peak (samples after the first 40), which sets SAT and the echo LED.
+// peak (after the burst and its first 40 samples), which sets SAT and the
+// echo LED.
 export function lineStats(line) {
   const s = line.samples;
+  const skip = peakSkip(line);
   let peak = 0;
   let at = -1;
   let min = 4095;
   let sum = 0;
   for (let i = 0; i < s.length; i++) {
     const v = s[i];
-    if (i > PEAK_SKIP && v > peak) {
+    if (i > skip && v > peak) {
       peak = v;
       at = i;
     }
@@ -224,8 +235,8 @@ export function lineStats(line) {
   return { peak, at, min, mean: s.length ? sum / s.length : 0, sat: Boolean(line.flags & 1) };
 }
 
-// Time of sample i from the burst start (the ADC starts after the blanking
-// delay), and the depth that is at a given sound speed (there and back).
+// Time of sample i from the burst start (v2: < 0 for the first 8, before the
+// burst), and the depth that is at a given sound speed (there and back).
 export const sampleUs = (line, i) => line.adcDelayNs / 1000 + (i * 1e6) / line.fsHz;
 export const depthMm = (line, i, soundSpeed = 1480) => (soundSpeed * sampleUs(line, i)) / 2000;
 
@@ -268,5 +279,5 @@ export function recordingCsv(recs) {
 }
 
 // A recording as the board sent it: the USC4 packets back to back, byte for
-// byte, for host/usc4.py (LineParser) or anything else later.
+// byte, for host_v2/usc4.py (LineParser) or anything else later.
 export const recordingRaw = (recs) => recs.map((r) => encodeLine(r.line.samples, r.line));

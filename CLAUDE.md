@@ -89,8 +89,12 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   queued; `?dev` on localhost uses `js/sim-device.js`, a pretend board that
   keeps the firmware's rules). `js/usc4.js`: the firmware's USB stream (USC4
   packets + "#st=" status lines), command bytes, CRC: same bytes as
-  `../host/usc4.py` and `../firmware/us_control_v5_fw/src/main.c`; tests.js
-  holds Python-made vectors. Change them together with the firmware.
+  `../host_v2/usc4.py` and `../firmware/us_control_v5_fw_v2/src/main.c`
+  (v1: `../host/`, `../firmware/us_control_v5_fw/`, kept unchanged); tests.js
+  holds Python-made vectors. Change them together with the firmware, in a new
+  firmware folder. `adcDelayNs` is signed: v2 starts the ADC about 5 µs
+  before the burst (t = 0), v1 3–6 µs after; `peakSkip(line)` = the 40
+  samples after the burst plus those before it.
 - `js/chanmap.js`: 채널 맵s (array element numbers in order → the board
   channel of each), kept in the shared `config/channels`; the console's chosen
   map is per device (`usbringup.chanmap`). With a map, B mode is sent as a
