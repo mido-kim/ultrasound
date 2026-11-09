@@ -1,5 +1,5 @@
 // Development only (localhost ?dev): a pretend VND042 running the v5 firmware
-// v2, so the console can be tried without a board. It keeps the firmware's
+// v3, so the console can be tried without a board. It keeps the firmware's
 // rules (main.c): settings wait for the next shot, R and X only from 정지, T
 // only while stopped and nothing answers for 6.4 s meanwhile, S works any
 // time. It fires at the PRF, but at most 50 lines a second.
@@ -9,6 +9,10 @@ import { FREQ_HZ, N_ELEM, SWEEP_MS, encodeLine } from './usc4.js';
 // v2's adc_pre_ticks[]: the ADC starts this many 96 MHz ticks before the burst.
 const PRE_TICKS = [532, 484, 505, 508, 520, 523, 538, 484];
 const delayNs = (f) => -Math.floor((PRE_TICKS[f] * 1000) / 96);
+// tim1_period[]. A pair line's LE goes low 3 cycles + RX_SWITCH_US (10) + the
+// interrupt after the burst start; the header has it in µs, rounded up.
+const PERIOD = [96, 32, 25, 24, 20, 19, 14, 12];
+const switchUs = (f) => Math.ceil((3 * PERIOD[f] + 960 + 50) / 96);
 
 export function simPort() {
   let push = () => {};
@@ -17,34 +21,37 @@ export function simPort() {
   let statusWanted = false;
   let busyUntil = 0; // T sweep
   let single = false;
-  const s = { st: 0, mode: 'A', f: 0, prf: 10, el: 0, cfg: 1, seq: 0, skip: 0, txerr: 0, fault: 0, hse: 25, late: 0, frame: 0, pos: 0, list: Array.from({ length: N_ELEM }, (_, i) => i) };
+  const s = { st: 0, mode: 'A', f: 0, prf: 10, el: 0, cfg: 1, seq: 0, skip: 0, txerr: 0, fault: 0, hse: 25, late: 0, frame: 0, pos: 0, list: Array.from({ length: N_ELEM }, (_, i) => i), rx: null };
   let pending = null; // settings sent, applied at the next tick while armed
   let t0 = performance.now();
 
-  const want = () => (pending ||= { mode: s.mode, f: s.f, prf: s.prf, el: s.el, list: s.list });
+  const want = () => (pending ||= { mode: s.mode, f: s.f, prf: s.prf, el: s.el, list: s.list, rx: s.rx });
   const status = () => {
     if (performance.now() < busyUntil) {
       statusWanted = true;
       return;
     }
     statusWanted = false;
-    const line = `#st=${s.st} f=${s.f} prf=${s.prf} el=${s.el} mode=${s.mode} cfg=${s.cfg} seq=${s.seq} skip=${s.skip} txerr=${s.txerr} fault=${s.fault.toString(16)} hse=${s.hse} late=${s.late}\n`;
+    const line = `#st=${s.st} f=${s.f} prf=${s.prf} el=${s.el} mode=${s.mode} cfg=${s.cfg} seq=${s.seq} skip=${s.skip} txerr=${s.txerr} fault=${s.fault.toString(16)} hse=${s.hse} late=${s.late} rx=${s.rx ?? '-'} rxmiss=0\n`;
     push(new TextEncoder().encode(line));
   };
 
   // Envelope-like samples, in time from the burst: quiet before it, the TX
   // feedthrough at it, an echo whose depth follows the element, noise on a
-  // small baseline.
-  const samples = (el, f) => {
+  // small baseline. A pair line (rx = the receive element): a bump where the
+  // MUX moves, then a weaker echo, halfway between the two elements' depths.
+  const samples = (el, f, rx = null) => {
     const out = new Uint16Array(480);
     const t0 = delayNs(f) / 1000; // µs of sample 0
-    const center = 80 + el * 11.25; // µs
-    const amp = 420 + 120 * Math.sin(performance.now() / 700);
+    const center = 80 + (rx === null ? el : (el + rx) / 2) * 11.25; // µs
+    const amp = (420 + 120 * Math.sin(performance.now() / 700)) * (rx === null ? 1 : 0.3);
+    const sw = rx === null ? Infinity : switchUs(f);
     for (let i = 0; i < out.length; i++) {
       const t = t0 + i * 0.625;
       const feed = t >= 0 && t < 20 ? 3800 * Math.exp(-t / 3.5) : 0;
       const echo = amp * Math.exp(-(((t - center) / 4.4) ** 2));
-      out[i] = Math.max(0, Math.min(4095, Math.round(110 + feed + echo + (Math.random() - 0.5) * 24)));
+      const bump = t >= sw ? 900 * Math.exp(-(t - sw) / 2.5) : 0;
+      out[i] = Math.max(0, Math.min(4095, Math.round(110 + feed + echo + bump + (Math.random() - 0.5) * 24)));
     }
     return out;
   };
@@ -59,10 +66,13 @@ export function simPort() {
       if (s.prf !== prf) restartTimer();
     }
     const el = s.mode === 'B' ? s.list[s.pos] : s.el;
-    const pkt = encodeLine(samples(el, s.f), {
+    const pair = s.mode !== 'B' && s.rx !== null && s.rx !== el;
+    const pkt = encodeLine(samples(el, s.f, pair ? s.rx : null), {
       sequence: s.seq, frame: s.frame, element: el, mode: s.mode, config: s.cfg,
       fsHz: 1600000, txHz: FREQ_HZ[s.f], txTimeUs: Math.round((performance.now() - t0) * 1000) + 50,
       adcDelayNs: delayNs(s.f),
+      rx: pair ? s.rx : 0,
+      rxSwitchUs: pair ? switchUs(s.f) : 0,
     });
     s.seq++;
     if (s.mode === 'B' && ++s.pos >= s.list.length) {
@@ -103,6 +113,12 @@ export function simPort() {
         if (b.length < 2) return 0;
         const e = b[1] < N_ELEM ? b[1] : parseInt(String.fromCharCode(b[1]), 16);
         if (e >= 0 && e < N_ELEM) want().el = e;
+        return 2;
+      }
+      case 'L': {
+        if (b.length < 2) return 0;
+        const e = b[1] < N_ELEM ? b[1] : parseInt(String.fromCharCode(b[1]), 16);
+        want().rx = e >= 0 && e < N_ELEM ? e : null;
         return 2;
       }
       case 'Q':

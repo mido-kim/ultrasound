@@ -19,7 +19,7 @@ import {
 import { KINDS, STAGES, STEPS, stagesFor } from '../js/steps.js';
 import { boardOrder, channelsRecord, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from '../js/chanmap.js';
 import {
-  CMD, FREQ_HZ, StreamParser, burstAt, clampPrf, crc32, depthMm, encodeLine, faultNames, frameCsv, frameInfo, lineCsv, lineStats,
+  CMD, FREQ_HZ, StreamParser, burstAt, clampPrf, crc32, depthMm, encodeLine, faultNames, frameCsv, frameInfo, isPair, lineCsv, lineStats,
   parseStatus, peakSkip, preSamples, recordingCsv, recordingRaw, sampleUs,
 } from '../js/usc4.js';
 
@@ -138,7 +138,7 @@ test('usc4: the parser reads the Python packet, also one byte at a time', () => 
   const [ev] = feedAll(new StreamParser(), PY_PACKET);
   const { type, samples, count, ...fields } = ev;
   eq([type, count, [...samples]], ['line', 4, [0, 1, 2047, 4095]]);
-  eq(fields, PY_FIELDS);
+  eq(fields, { ...PY_FIELDS, rxSwitchUs: 0, rx: 3 }, 'a normal line: received on the element fired');
   const p = new StreamParser();
   const got = [];
   for (const b of PY_PACKET) got.push(...p.feed(Uint8Array.of(b)));
@@ -207,6 +207,51 @@ test('usc4: firmware v2 starts the ADC before the burst (signed delay); the peak
   eq([532, 484, 505, 508, 520, 523, 538, 484].map((t) => preSamples({ adcDelayNs: -Math.floor((t * 1000) / 96), fsHz: 1600000 })), new Array(8).fill(8));
   const v1 = { samples, flags: 0, adcDelayNs: 4000, fsHz: 1600000 };
   eq([preSamples(v1), peakSkip(v1), burstAt(v1) < 0], [0, 40, true], 'v1 lines as before');
+});
+
+// host_v3/usc4.encode_line([0, 1, 2047, 4095], sequence=9, frame=0, element=1, mode='A', config=44, fs_hz=1600000,
+//   tx_hz=3840000, tx_time_us=123456, adc_delay_ns=-5260, rx_element=2, rx_switch_us=12)  (firmware v3, a pair line)
+const PY_PACKET_V3 = hex('5553433401013000090000000000000001410c0004002c00006a180000983a0040e201000000000074ebffff0800020c00000100ff07ff0f262a84d2');
+
+test('usc4: firmware v3 pair lines, fired on one element and received on another', () => {
+  const fields = {
+    sequence: 9, frame: 0, element: 1, mode: 'A', flags: 0, config: 44, fsHz: 1600000, txHz: 3840000, txTimeUs: 123456, adcDelayNs: -5260, rx: 2, rxSwitchUs: 12,
+  };
+  eq([...encodeLine([0, 1, 2047, 4095], fields)], [...PY_PACKET_V3], 'same bytes as host_v3/usc4.py');
+  const [ev] = new StreamParser().feed(PY_PACKET_V3);
+  eq([ev.element, ev.rx, ev.rxSwitchUs, isPair(ev)], [1, 2, 12, true]);
+  const [normal] = new StreamParser().feed(PY_PACKET_V2);
+  eq([normal.element, normal.rx, normal.rxSwitchUs, isPair(normal)], [5, 5, 0, false], 'a v2 line reads as before');
+  eq([...recordingRaw([{ ms: 0, line: normal }])[0]], [...PY_PACKET_V2], 'and saves back byte for byte');
+  eq([...recordingRaw([{ ms: 0, line: ev }])[0]], [...PY_PACKET_V3], 'a pair line too');
+  // Refused, as in host_v3: a stray element byte with no switch time, B mode, rx = the element fired, rx > 15.
+  const rebuilt = (pkt, at, value) => {
+    const b = pkt.slice();
+    b[at] = value;
+    new DataView(b.buffer).setUint32(b.length - 4, crc32(b, 0, b.length - 4), true);
+    return b;
+  };
+  for (const bad of [rebuilt(PY_PACKET_V2, 46, 3), rebuilt(PY_PACKET_V3, 17, 0x42), rebuilt(PY_PACKET_V3, 46, 1), rebuilt(PY_PACKET_V3, 46, 16)]) {
+    const p = new StreamParser();
+    eq(p.feed(bad).length, 0);
+    if (p.badHeader < 1) throw new Error('bad header not counted');
+  }
+  eq([...CMD.listen(2), ...CMD.listen(null)], [0x4c, 2, 0x4c, 0xff]);
+  const st = '#st=0 f=2 prf=100 el=1 mode=A cfg=3 seq=12 skip=0 txerr=0 fault=0 hse=25 late=0';
+  eq([parseStatus(`${st} rx=2 rxmiss=0`).rx, parseStatus(`${st} rx=2 rxmiss=0`).rxmiss], [2, 0]);
+  eq([parseStatus(`${st} rx=- rxmiss=4`).rx, parseStatus(`${st} rx=- rxmiss=4`).rxmiss], [null, 4], "'-': the element that fires");
+  eq(parseStatus(st).rx, undefined, 'v1 and v2 have no rx');
+  // CSV: rx_ch says which element each sample came from: 11.5 µs is before the move, 12.125 µs after it.
+  const rows = lineCsv({ ...ev, samples: [100, 100], adcDelayNs: 11500 }, 1540).split('\r\n');
+  eq(rows[0], 'sample,time_us,depth_mm,adc_code,adc_V,rx_ch');
+  eq([rows[1].split(',')[5], rows[2].split(',')[5]], ['1', '2']);
+  eq(lineCsv({ ...normal, samples: [100] }).split('\r\n')[0], 'sample,time_us,depth_mm,adc_code,adc_V', 'a normal line: columns as before');
+  const recs = [{ ms: 0, line: ev, element: 7, rxElement: 8 }, { ms: 5, line: normal, element: 6, rxElement: 6 }];
+  const csv = recordingCsv(recs).join('').split('\r\n');
+  eq(csv[0], 'board_us,pc_ms,seq,frame,board_ch,element,mode,tx_MHz,adc_start_us,dt_us,sat,rx_ch,rx_element,rx_switch_us,V0,V1,V2,V3');
+  eq(csv[1].split(',').slice(11, 14), ['2', '8', '12']);
+  eq(csv[2].split(',').slice(11, 14), ['5', '6', ''], 'a normal line among them');
+  eq(recordingCsv([recs[1]]).join('').includes('rx_ch'), false, 'no pair lines: columns as before');
 });
 
 test('채널 맵: array number order → board channels, numbering base, clashes, new maps', () => {

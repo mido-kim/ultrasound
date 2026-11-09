@@ -1,7 +1,7 @@
 // Stage 4 (펌웨어 올리기) explained on its own page: the wiring, the laptop,
 // the console, what the commands and the status line mean, SW201, the timing
 // of one line and what to look for on the scope. Gathered from
-// firmware/us_control_v5_fw_v2 (README, main.c) and the bring-up guide so that
+// firmware/us_control_v5_fw_v3 (README, main.c) and the bring-up guide so that
 // nothing has to be looked up elsewhere. Each part folds open; stageSection()
 // remembers which are open. Template strings: write a backslash twice.
 
@@ -39,13 +39,14 @@ const CONSOLE = `
     <li>버튼이 곧 명령이에요. 단발 = X, 연속 = R (실수 방지로 두 번 눌러야 시작), 정지 = S, MUX 스윕 = T, 상태 다시 = ?.</li>
     <li>버튼 (단발 · 연속 · MUX 스윕)은 무엇을 할지, 모드 (A · M · B)는 어느 소자를 쏘고 어떻게 볼지예요. A + 단발 = 한 줄 확인, B + 연속 = 실시간 단면 영상. 4단계는 A만 써요.</li>
     <li>채널 맵: 어레이 소자 번호가 보드 채널 (EL0–EL15)과 다르면, 콘솔 채널 맵에 어레이 번호 순서대로 각 소자의 EL을 골라 이름 붙여 저장해요. 소자 버튼 · B 화면이 어레이 번호로 바뀌어요.</li>
+    <li>수신 소자: 크로스토크 확인용 (펌웨어 v3, A · M). 송신 소자와 다른 소자를 고르면 버스트 끝 10 µs 뒤 MUX가 그 소자로 바뀌어요. 그래프의 "수신 소자로" 점선이 그 순간이고, 스위치는 최대 4 µs 더 걸려요. 그 앞은 송신 소자 신호예요. 버스트 중의 크로스토크는 줄에 안 나와요 (수신 소자 핀을 스코프로). 고전압에서 쓰기 전에 연결 테스트 1의 BUS 복귀 시간 (4.5 µs 이내)을 먼저 재요.</li>
     <li>주파수 · 소자 · PRF · 모드는 고르면 바로 보내요. 보드는 <b>다음 송신 때</b> 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 한 번 뒤에 바뀌어요.</li>
     <li>정지는 어느 화면에서든 Esc 키로도 돼요. 다른 화면으로 가도 연결은 그대로라, 체크리스트에 값을 적고 돌아와도 돼요.</li>
     <li>받은 줄: 가로는 µs (버스트 = 0) 또는 mm (깊이), 세로는 V (ADC 입력) 또는 ADC 코드. 회색 점선 = 버스트, 빨간 점선 = SAT (4090). 회색 칸 = 버스트 직후 25 µs (송신 잡음). 최고값 계산에서 빼요.</li>
     <li>보는 구간: 최소 · 최대를 넣으면 그 구간만 보여요 (M · B는 세로축). 빈 칸 = 줄 처음 · 끝, 전체 = 다시 줄 전체. CSV는 늘 줄 전체예요.</li>
     <li>음속: mm 값 (그래프 · 최고값 위치 · CSV 깊이)은 음속 칸으로 계산해요. 기본 1540 m/s (연조직 평균, 팬텀). 파일 이름에 <code>_c1540</code>처럼 붙어요.</li>
-    <li>펌웨어 v2는 버스트 약 5 µs 전부터 받아서 버스트가 줄 맨 앞에 보여요. v1은 버스트 3–6 µs 뒤부터라 안 보여요.</li>
-    <li>저장: <b>이 줄 CSV</b> = 지금 줄 하나 (시간 µs · 깊이 mm · 코드 · 전압 V). B 모드에서는 <b>프레임 CSV</b> = 칼럼 1 시간, 2 깊이, 3부터 소자마다 전압 (채널 맵 순서). <b>녹화</b>를 켜 두면 그동안 받은 줄을 다 모아 CSV (한 행에 한 줄) 또는 원본 (.usc4)으로 저장해요. 전압은 ADC 입력 (TP605, 수신 회로의 포락선 출력)이고, 전류는 재지 않아요.</li>
+    <li>펌웨어 v2 · v3는 버스트 약 5 µs 전부터 받아서 버스트가 줄 맨 앞에 보여요. v1은 버스트 3–6 µs 뒤부터라 안 보여요.</li>
+    <li>저장: <b>이 줄 CSV</b> = 지금 줄 하나 (시간 µs · 깊이 mm · 코드 · 전압 V). B 모드에서는 <b>프레임 CSV</b> = 칼럼 1 시간, 2 깊이, 3부터 소자마다 전압 (채널 맵 순서). <b>녹화</b>를 켜 두면 그동안 받은 줄을 다 모아 CSV (한 행에 한 줄) 또는 원본 (.usc4)으로 저장해요. 전압은 ADC 입력 (TP605, 수신 회로의 포락선 출력)이고, 전류는 재지 않아요. 수신 소자를 따로 고른 줄은 이 줄 CSV에 <code>rx_ch</code>, 녹화 CSV에 <code>rx_ch</code> · <code>rx_element</code> · <code>rx_switch_us</code> 칼럼이 더 붙어요.</li>
     <li>터미널이나 뷰어가 포트를 열고 있으면 콘솔이 연결 못 해요. 먼저 닫아요.</li>
   </ol>`;
 
@@ -60,6 +61,7 @@ const COMMANDS = `
     <tr><td><code>T</code></td><td>MUX 스윕. 쏘지 않고 EL0 → EL15를 0.4초씩 이어요 (도통 확인용). 끝나면 모두 열림. 정지 상태에서만. 그 6.4초 동안은 다른 답이 늦어요</td><td>없음</td></tr>
     <tr><td><code>F</code> n</td><td>주파수 번호 0–7. 96 MHz ÷ 정수로 만들어서 이 8개뿐이에요 (3.80은 안 됨). 3사이클 버스트는 폭이 약 1.5 MHz라 3.8 MHz 소자는 3.840으로 충분해요</td><td>없음</td></tr>
     <tr><td><code>E</code> n</td><td>소자 0–15 (터미널에서는 0–9, a–f)</td><td>없음</td></tr>
+    <tr><td><code>L</code> n</td><td>수신 소자 0–15, A · M 모드. 숫자는 <code>E</code>와 같아요. <code>L-</code> = 송신 소자로 받기 (보통). 펌웨어 v3부터</td><td>없음</td></tr>
     <tr><td><code>P</code></td><td>PRF 1–2000 Hz. 숫자가 바이트 2개라 콘솔에서만</td><td>없음</td></tr>
     <tr><td><code>A</code> <code>M</code> <code>B</code></td><td>모드. A = 고른 소자 한 줄 · M = 같은 소자를 시간 순으로 (움직임) · B = 줄마다 다음 소자, 16줄 단면 영상 (한 장에 PRF 32번). A와 M은 보드가 하는 일이 같고, 콘솔이 보여 주는 방법만 달라요</td><td>없음</td></tr>
   </table></div>
@@ -76,6 +78,8 @@ const COMMANDS = `
     <tr><td><code>fault</code></td><td>고장, 16진수. 02 ADC 시작 실패 · 04 ADC 오류 · 10 버스트가 안 나감. 0이 정상</td></tr>
     <tr><td><code>hse</code></td><td>켤 때 찾은 크리스털 (MHz). 0이면 크리스털 없이 내부 RC로 돌아서 USB가 불안할 수 있어요</td></tr>
     <tr><td><code>late</code></td><td>송신 준비가 늦어 그 순간을 건너뛴 횟수</td></tr>
+    <tr><td><code>rx</code></td><td>수신 소자. <code>-</code> = 송신 소자로 받기. 펌웨어 v3부터</td></tr>
+    <tr><td><code>rxmiss</code></td><td>MUX를 수신 소자로 못 바꾼 줄 수. 0이 정상</td></tr>
   </table></div>`;
 
 const SW201 = `
@@ -94,10 +98,11 @@ const TIMING = `
   <div class="tw"><table>
     <tr><th>시간</th><th>일</th></tr>
     <tr><td>0 µs 바로 뒤</td><td>ADC · 타이머 준비 (십수 µs), 그다음 WINDOW (J1-2) HIGH</td></tr>
-    <tr><td>약 44.5 µs</td><td>ADC 시작 (v2). 버스트 5.0–5.6 µs 전, 주파수마다 조금씩 달라요</td></tr>
+    <tr><td>약 44.5 µs</td><td>ADC 시작 (v2 · v3). 버스트 5.0–5.6 µs 전, 주파수마다 조금씩 달라요</td></tr>
     <tr><td>50 µs</td><td>버스트 시작 = 받은 줄의 0 µs. 3사이클 (1 MHz면 3 µs, 8 MHz면 0.375 µs)</td></tr>
     <tr><td>버스트 끝</td><td>INA LOW · INB HIGH (쉼)로 돌아가고 WINDOW LOW</td></tr>
-    <tr><td>+ 300 µs</td><td>480개 (1.6 Msps)를 다 받으면 그 줄 (1012바이트)을 USB로</td></tr>
+    <tr><td>버스트 끝 + 10 µs</td><td>수신 소자를 따로 고른 줄만 (v3). LE LOW 한 번으로 MUX가 그 소자로 바뀌어요 (최대 4 µs). SPI는 버스트 전에 미리 보내 둬요</td></tr>
+    <tr><td>+ 300 µs</td><td>480개 (1.6 Msps)를 다 받으면 그 줄 (1012바이트)을 USB로. 수신 소자를 따로 고른 줄은 MUX를 송신 소자로 먼저 되돌려요</td></tr>
   </table></div>
   <p class="small muted">v1 펌웨어는 ADC를 버스트 3–6 µs 뒤 (블랭킹)에 켜요. 그래서 버스트가 줄에 없어요.</p>`;
 
@@ -105,7 +110,8 @@ const SCOPE = `
   <ul>
     <li><b>두 FET가 같이 켜지는 순간</b> (OUTA −5 V 이면서 OUTB +5 V): 보이면 바로 Esc. 펌웨어의 INB 극성 문제예요.</li>
     <li><b>dead time</b>: 펌웨어 값은 전환마다 약 52 ns. 6.857 · 8 MHz는 반주기가 73 · 62.5 ns라 실제로 미는 시간이 21 · 10 ns뿐이에요. 높은 주파수에서는 줄여야 할 수 있어요 (펌웨어 수정).</li>
-    <li><b>버스트 끝</b>: 마지막 사이클 바로 뒤 INA (TP401)에 짧은 튐이 있는지. v2는 버스트 중에도 ADC가 돌아서, v2를 올린 뒤 1 · 3.84 · 8 MHz에서 다시 봐요.</li>
+    <li><b>버스트 끝</b>: 마지막 사이클 바로 뒤 INA (TP401)에 짧은 튐이 있는지. v2 · v3는 버스트 중에도 ADC가 돌아서, 올린 뒤 1 · 3.84 · 8 MHz에서 다시 봐요.</li>
+    <li><b>수신 소자 따로 (v3)</b>: 고전압 전에 TP401 (INA)과 J1-9 (LE)를 같이 봐요. 버스트 동안 LE는 HIGH, 버스트 끝 약 10 µs 뒤 LOW 펄스 한 번, 버스트 약 295 µs 뒤 한 번 더 (송신 소자로 되돌림).</li>
   </ul>
   <p class="small muted">테스트 포인트 위치는 <a href="#/guide">보드 지도 · 표</a>에 있어요.</p>`;
 

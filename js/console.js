@@ -10,8 +10,8 @@
 import { boardOrder, clashes, elementOf, mapsOf, newMap, noneOrder, scanOrder } from './chanmap.js';
 import { hasSerial, isDev, openLink } from './device.js';
 import {
-  CMD, FREQ_LABELS, MAX_SAMPLES, N_ELEM, SAT_CODE, STATES, SWEEP_MS,
-  burstAt, clampPrf, codeToV, depthMm, faultNames, frameCsv, frameInfo, lineCsv, lineStats, peakSkip, recordingCsv, recordingRaw,
+  CMD, FREQ_LABELS, MAX_SAMPLES, MUX_SETTLE_US, N_ELEM, SAT_CODE, STATES, SWEEP_MS,
+  burstAt, clampPrf, codeToV, depthMm, faultNames, frameCsv, frameInfo, isPair, lineCsv, lineStats, peakSkip, recordingCsv, recordingRaw,
   sampleUs,
 } from './usc4.js';
 import { esc, readJSON, saveFile, writeJSON } from './util.js';
@@ -43,7 +43,7 @@ const con = {
   connecting: false,
   status: null, // last status line, parsed
   statusAt: 0,
-  want: null, // { mode, f, prf, el } picked here; the board applies it at its next shot
+  want: null, // { mode, f, prf, el, rx } picked here; the board applies it at its next shot (rx null = the element that fires)
   line: null,
   stats: null,
   lines: 0,
@@ -69,7 +69,7 @@ const con = {
   mapEdit: false, // the map table is open
   mapSavedAt: 0,
   yUnit: 'V', // the A graph's vertical axis: 'V' or 'code'
-  rec: { on: false, list: [], t0: 0 }, // 녹화: [{ ms, line, element }]
+  rec: { on: false, list: [], t0: 0 }, // 녹화: [{ ms, line, element, rxElement }]
   barKey: '',
 };
 
@@ -87,11 +87,12 @@ function chText(ch) {
 
 // Element buttons: the board's 16 channels, or with a map the array's
 // elements in number order, each showing its number over the channel.
-function elButtonsHtml() {
+// act: the row they are for, 송신 소자 (con-el) or 수신 소자 (con-rx).
+function elButtonsHtml(act = 'con-el') {
   const map = activeMap();
   return scanOrder(map).map((ch) => (map
-    ? `<button type="button" class="pick" data-act="con-el" data-e="${ch}" title="EL${ch}"><b>${elementOf(map, ch)}</b><small>EL${ch}</small></button>`
-    : `<button type="button" class="pick" data-act="con-el" data-e="${ch}" title="J1001 ${2 * ch + 1}번 핀">${ch}</button>`)).join('');
+    ? `<button type="button" class="pick" data-act="${act}" data-e="${ch}" title="EL${ch}"><b>${elementOf(map, ch)}</b><small>EL${ch}</small></button>`
+    : `<button type="button" class="pick" data-act="${act}" data-e="${ch}" title="J1001 ${2 * ch + 1}번 핀">${ch}</button>`)).join('');
 }
 
 const chOptions = (sel) => ['<option value="">—</option>',
@@ -155,6 +156,7 @@ function useMap(id) {
 
 function mapChanged(rebuild = true) {
   setHtml('con-els', elButtonsHtml());
+  setHtml('con-rxs', elButtonsHtml('con-rx'));
   if (rebuild) {
     setHtml('con-map-body', mapPanelHtml());
   } else {
@@ -222,6 +224,11 @@ export function consolePage(signedIn = true, channels = null) {
             <p class="con-help">96 MHz ÷ 정수라 이 8개뿐이에요. 3.8 MHz 소자는 3.840 (3사이클은 폭이 넓어 차이 없음)</p>
           </div>
           <div class="con-row"><span class="lbl" id="con-el-lbl"></span><div class="con-els" id="con-els">${elButtonsHtml()}</div></div>
+          <div class="con-row"><span class="lbl">수신 소자</span>
+            <div class="con-btns"><button type="button" class="pick" data-act="con-rx" data-e="">같은 소자</button></div>
+            <div class="con-els" id="con-rxs">${elButtonsHtml('con-rx')}</div>
+            <p class="con-help" id="con-rx-help"></p>
+          </div>
           <div class="con-row"><span class="lbl">PRF (1초에 쏘는 횟수)</span>
             <div class="con-btns">
               <input type="number" id="con-prf" min="1" max="2000" step="1" value="${esc(typed('con-prf', con.want?.prf ?? 10))}" aria-label="PRF (Hz)"><span class="unit">Hz</span>
@@ -283,7 +290,7 @@ export function consolePage(signedIn = true, channels = null) {
             <button type="button" data-act="con-rec-raw" id="con-rec-raw">원본 .usc4</button>
             <button type="button" data-act="con-rec-clear" id="con-rec-clear">지우기</button>
           </div>
-          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us (버스트 = 0). 원본 = 받은 바이트 그대로 (host_v2/usc4.py로 읽어요).</p>
+          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us (버스트 = 0). 수신 소자를 따로 고른 줄이 있으면 V0 앞에 rx_ch · rx_element · rx_switch_us가 붙어요. 원본 = 받은 바이트 그대로 (host_v3/usc4.py로 읽어요).</p>
         </section>
         <section class="con-panel" aria-labelledby="con-log-h">
           <div class="row"><h2 id="con-log-h">기록</h2><span class="spacer"></span><button type="button" data-act="con-clear">지우기</button></div>
@@ -332,13 +339,15 @@ function statusHtml() {
     <div class="con-tiles">
       ${tile('주파수', s.f !== null ? `${FREQ_LABELS[s.f] ?? s.f} MHz` : '?')}
       ${tile('PRF', `${s.prf} Hz`)}
-      ${tile('소자', chText(s.el))}
+      ${tile('송신 소자', chText(s.el))}
+      ${s.rx === undefined ? '' : tile('수신 소자', s.rx === null ? '같은 소자' : chText(s.rx))}
       ${tile('모드', esc(s.mode))}
       ${tile('보낸 줄 seq', s.seq)}
       ${tile('설정 번호 cfg', s.cfg)}
       ${tile('건너뜀 skip', s.skip, s.skip ? ' warn' : '')}
       ${tile('USB 실패', s.txerr, s.txerr ? ' warn' : '')}
       ${tile('늦음 late', s.late, s.late ? ' warn' : '')}
+      ${s.rxmiss ? tile('수신 전환 실패 rxmiss', s.rxmiss, ' warn') : ''}
       ${tile('크리스털 hse', s.hse ? `${s.hse} MHz` : '없음 (내부 RC)', s.hse ? '' : ' warn')}
       ${tile('고장 fault', esc(faults), s.fault ? ' bad' : '')}
     </div>`;
@@ -350,15 +359,17 @@ function readHtml() {
   const st = con.stats;
   const mhz = (l.txHz / 1e6).toFixed(3);
   const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at, con.view.c).toFixed(1)} mm)` : '';
+  const who = isPair(l) ? `${chText(l.element)} → ${chText(l.rx)}` : chText(l.element);
   return `
     <div class="con-tiles">
       <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (버스트 직후 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
       <div class="con-tile"><span class="k">최저 · 평균 (V)</span><span class="v">${codeToV(st.min).toFixed(3)} · ${codeToV(st.mean).toFixed(3)}</span></div>
-      <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${chText(l.element)} · ${mhz} MHz · ${esc(l.mode)}</span></div>
+      <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${who} · ${mhz} MHz · ${esc(l.mode)}</span></div>
       <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
       <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
     </div>
-    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 음속 ${con.view.c} m/s로</p>`;
+    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 음속 ${con.view.c} m/s로</p>
+    ${isPair(l) ? `<p class="small muted">수신 소자로 바뀐 때: 버스트 뒤 ${l.rxSwitchUs} µs (스위치 최대 ${MUX_SETTLE_US} µs 더). 그 앞은 송신 소자 신호예요.</p>` : ''}`;
 }
 
 // v2 starts the ADC before the burst (adcDelayNs < 0), v1 after it.
@@ -442,10 +453,23 @@ function paintControls() {
   const w = con.want || {};
   const s = con.status || {};
   const elLbl = document.getElementById('con-el-lbl');
-  if (elLbl) elLbl.textContent = activeMap() ? `소자 (${activeMap().name})` : '소자 (EL)';
+  if (elLbl) elLbl.textContent = activeMap() ? `송신 소자 (${activeMap().name})` : '송신 소자 (EL)';
   root.querySelectorAll('[data-act="con-freq"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === (w.f ?? s.f))));
   root.querySelectorAll('[data-act="con-el"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.e) === (w.el ?? s.el))));
   root.querySelectorAll('[data-act="con-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === (w.mode ?? s.mode))));
+  // 수신 소자: firmware v3 (its status has rx=), A and M only.
+  const oldFw = Boolean(con.status) && s.rx === undefined;
+  const modeB = (w.mode ?? s.mode) === 'B';
+  const rxNow = w.rx !== undefined ? w.rx : s.rx ?? null;
+  root.querySelectorAll('[data-act="con-rx"]').forEach((b) => {
+    b.disabled = !on || !con.status || oldFw || modeB;
+    b.setAttribute('aria-pressed', String(b.dataset.e === '' ? rxNow === null : Number(b.dataset.e) === rxNow));
+  });
+  const rxHelp = document.getElementById('con-rx-help');
+  if (rxHelp) {
+    const text = oldFw ? '펌웨어 v3부터 돼요.' : modeB ? 'B 모드에서는 안 써요.' : '다른 소자를 고르면 버스트 끝 10 µs 뒤 MUX가 그 소자로 바뀌어요. 그 앞 구간은 송신 소자 신호예요. A · M 모드만.';
+    if (rxHelp.textContent !== text) rxHelp.textContent = text;
+  }
   root.querySelectorAll('[data-act="con-axis"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.axis === con.view.axis)));
   root.querySelectorAll('[data-act="con-yunit"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.unit === con.yUnit)));
   const arm = document.getElementById('con-arm');
@@ -513,6 +537,7 @@ function pendingHtml() {
   const diff = [];
   if (w.f !== undefined && w.f !== s.f) diff.push(`${FREQ_LABELS[w.f]} MHz`);
   if (w.el !== undefined && w.el !== s.el) diff.push(chText(w.el));
+  if (w.rx !== undefined && s.rx !== undefined && w.rx !== s.rx) diff.push(w.rx === null ? '수신 = 송신 소자' : `수신 ${chText(w.rx)}`);
   if (w.prf !== undefined && w.prf !== s.prf) diff.push(`PRF ${w.prf} Hz`);
   if (w.mode !== undefined && w.mode !== s.mode) diff.push(`모드 ${esc(w.mode)}`);
   return diff.length ? `<span class="chip warn">다음 송신 때 적용</span> ${diff.join(' · ')}` : '';
@@ -627,6 +652,20 @@ function drawPlot() {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (isPair(line)) { // the MUX moves to the receive element here
+      const x = Math.round(xAt(switchAt(line))) + 0.5;
+      ctx.strokeStyle = tok('--warn');
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, T + 1);
+      ctx.lineTo(x, T + ph - 1);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = tok('--warn');
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('수신 소자로', x + 5, T + 22);
+    }
     ctx.strokeStyle = tok('--danger');
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -665,6 +704,16 @@ function drawPlot() {
     const y1 = T + at(a0 + (n - 0.5) * per, ph);
     clipToPlot();
     ctx.drawImage(pic, L + 1, y0, pw - 2, y1 - y0);
+    if (mode === 'M' && isPair(line)) { // the MUX moves to the receive element here
+      const y = Math.round(T + at(switchAt(line), ph)) + 0.5;
+      ctx.strokeStyle = tok('--warn');
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(L + 1, y);
+      ctx.lineTo(L + pw - 1, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.restore();
   }
   ctx.fillStyle = tok('--muted');
@@ -692,6 +741,7 @@ function drawPlot() {
 // Sample i on the time axis, in its unit: µs from the burst or depth in mm.
 const axisVal = (line, i) => (con.view.axis === 'us' ? sampleUs(line, i) : depthMm(line, i, con.view.c));
 const lineEnds = (line) => [axisVal(line, 0), axisVal(line, line.samples.length - 1)];
+const switchAt = (line) => (con.view.axis === 'us' ? line.rxSwitchUs : (line.rxSwitchUs * con.view.c) / 2000); // a pair line's MUX move, on the axis
 
 // The part of the time axis shown: what was typed in 보는 구간, else the
 // line's own start and end. bad: min isn't below max, so the whole line.
@@ -761,7 +811,7 @@ function onEvent(ev) {
     if (!s) return;
     con.status = s;
     con.statusAt = Date.now();
-    if (!con.want) con.want = { mode: s.mode, f: s.f, prf: s.prf, el: s.el };
+    if (!con.want) con.want = { mode: s.mode, f: s.f, prf: s.prf, el: s.el, rx: s.rx ?? null };
     const changed = !prev || prev.st !== s.st || prev.fault !== s.fault || prev.cfg !== s.cfg;
     const asked = con.logNextStatus === 'always' || (con.logNextStatus && ev.text !== con.lastLoggedStatus);
     if (changed || asked) {
@@ -780,7 +830,8 @@ function onEvent(ev) {
     if (ev.mode === 'M') pushM(ev);
     if (ev.mode === 'B') con.bCols[ev.element] = ev;
     if (con.rec.on) {
-      con.rec.list.push({ ms: Date.now() - con.rec.t0, line: ev, element: activeMap() ? elementOf(activeMap(), ev.element) : null });
+      const m = activeMap();
+      con.rec.list.push({ ms: Date.now() - con.rec.t0, line: ev, element: m ? elementOf(m, ev.element) : null, rxElement: m ? elementOf(m, ev.rx) : null });
       if (con.rec.list.length >= REC_MAX) {
         con.rec.on = false;
         log('info', `녹화가 ${REC_MAX.toLocaleString()}줄이 돼서 멈췄어요. 저장한 뒤 지우면 다시 녹화돼요.`);
@@ -788,7 +839,7 @@ function onEvent(ev) {
     }
     if (Date.now() - con.lastLineLog > 1000) {
       con.lastLineLog = Date.now();
-      log('in', `받은 줄 #${ev.sequence} · EL${ev.element} · 최고 ${con.stats.peak}${con.stats.sat ? ' · SAT' : ''}`);
+      log('in', `받은 줄 #${ev.sequence} · EL${ev.element}${isPair(ev) ? ` → EL${ev.rx}` : ''} · 최고 ${con.stats.peak}${con.stats.sat ? ' · SAT' : ''}`);
     }
   }
   schedulePaint();
@@ -885,6 +936,7 @@ function pick(key, value) {
   con.want = { ...(con.want || {}), [key]: value };
   if (key === 'f') send(CMD.freq(value), `주파수 ${FREQ_LABELS[value]} MHz`, `F${value}`);
   if (key === 'el') send(CMD.element(value), chText(value), `E${value.toString(16)}`);
+  if (key === 'rx') send(CMD.listen(value), value === null ? '수신 = 송신 소자' : `수신 ${chText(value)}`, value === null ? 'L-' : `L${value.toString(16)}`);
   if (key === 'mode') {
     if (value === 'B') sendScanOrder();
     send(CMD.mode(value), `모드 ${value}`, value);
@@ -955,8 +1007,12 @@ function saveLine() {
   const l = con.line;
   if (!l) return;
   if (l.mode === 'B') return saveFrame();
-  const e = activeMap() ? elementOf(activeMap(), l.element) : null;
-  saveFile(`line_${l.sequence}_${e !== null ? `E${e}_` : ''}EL${l.element}_${(l.txHz / 1e6).toFixed(3)}MHz_c${con.view.c}.csv`, lineCsv(l, con.view.c), 'text/csv');
+  const name = (ch) => {
+    const e = activeMap() ? elementOf(activeMap(), ch) : null;
+    return `${e !== null ? `E${e}_` : ''}EL${ch}`;
+  };
+  const who = isPair(l) ? `${name(l.element)}_to_${name(l.rx)}` : name(l.element);
+  saveFile(`line_${l.sequence}_${who}_${(l.txHz / 1e6).toFixed(3)}MHz_c${con.view.c}.csv`, lineCsv(l, con.view.c), 'text/csv');
 }
 
 function toggleRec() {
@@ -1074,6 +1130,7 @@ export function consoleAction(act, el, host) {
       return send(CMD.status(), '상태 읽기', '?', { askAfter: [] });
     case 'con-freq': return pick('f', Number(el.dataset.i));
     case 'con-el': return pick('el', Number(el.dataset.e));
+    case 'con-rx': return pick('rx', el.dataset.e === '' ? null : Number(el.dataset.e));
     case 'con-mode': return pick('mode', el.dataset.m);
     case 'con-prf': return applyPrf();
     case 'con-axis': return setAxis(el.dataset.axis);

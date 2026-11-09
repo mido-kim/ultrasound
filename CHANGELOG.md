@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0 — 2026-11-09
+
+- For firmware **v3** (`../firmware/us_control_v5_fw_v3`, not yet on a board):
+  **pair lines**, to look at crosstalk. 펌웨어 콘솔 has a new row, **수신
+  소자** (같은 소자 or any element, in 채널 맵 order), next to 송신 소자. A and
+  M only; older firmware shows it off.
+- The board has one BUS, so the firmware moves the MUX 10 µs after the burst
+  end. The graph marks that time ("수신 소자로"), and the switches take up to
+  4 µs more; what comes before is still the element that fired.
+- The status shows 수신 소자; the line's readout shows `송신 → 수신`; file
+  names say `…_EL1_to_EL2_…`. 이 줄 CSV of a pair line adds `rx_ch` (which
+  channel each sample came from); a recording with pair lines adds `rx_ch`,
+  `rx_element`, `rx_switch_us` before V0. Without pair lines both are as before.
+- USC4 header bytes 46 and 47 (a reserved 0 until now) carry the receive
+  element and the switch time. Normal lines are the same bytes as before.
+- Stage 4 text and laptop setup point to `us_control_v5_fw_v3` and `host_v3`
+  (kit `us_kit_2026-11-09.zip`). The dev simulator follows v3.
+
 ## 0.13.0 — 2026-11-05
 
 - 펌웨어 콘솔: **보내기** (송신 · 주파수 · 소자 · PRF · 모드) moves to the top

@@ -17,14 +17,14 @@ export const LAPTOP_HTML = `
         <li><b>Zadig</b> zadig.akeo.ie. 업로드용 USB 드라이버 (순서 3에서 한 번)</li>
         <li><b>Chrome이나 Edge</b> 펌웨어 콘솔용. USB 시리얼은 이 둘만 돼요</li>
         <li><b>USB-C 케이블</b> 데이터 되는 것. 충전 전용은 안 돼요</li>
-        <li><b>us_kit 압축</b> 펌웨어 · 뷰어 파일. <code>C:\\us_kit</code>에 풀기. 11-05판은 v2 폴더 두 개가 더해져요</li>
+        <li><b>us_kit 압축</b> 펌웨어 · 뷰어 파일. <code>C:\\us_kit</code>에 풀기. 11-09판은 v3 폴더 두 개가 더해져요</li>
       </ol>
     </div>
     <div class="stack">
       <h3>순서</h3>
       <ol>
         <li><b>빌드</b> 끝에 SUCCESS. 첫 빌드는 몇 분 (툴체인 받기, 디스크 약 1 GB)
-          <pre class="cmd">cd C:\\us_kit\\us_control_v5_fw_v2
+          <pre class="cmd">cd C:\\us_kit\\us_control_v5_fw_v3
 python -m platformio run</pre></li>
         <li><b>부트로더</b> BOOT0 누른 채 USB 꽂고 BOOT0 떼기</li>
         <li><b>Zadig</b> 노트북마다 한 번. Options → List All Devices → STM32 BOOTLOADER → WinUSB → Install Driver (또는 Replace Driver)</li>
@@ -37,7 +37,7 @@ python -m platformio run</pre></li>
         <li><b>터미널</b> <code>?</code> 치면 상태 한 줄. 다른 명령은 답이 없어요. 끄기는 Ctrl+C
           <pre class="cmd">python -m platformio device monitor -p COM5</pre></li>
         <li><b>뷰어</b> 버튼 몇 개와 A · M · B 화면
-          <pre class="cmd">cd C:\\us_kit\\host_v2
+          <pre class="cmd">cd C:\\us_kit\\host_v3
 python viewer_v5.py COM5</pre></li>
       </ul>
     </div>

@@ -186,7 +186,7 @@ export const STEPS = [
       '처음 한 번: ② 노트북 준비대로 설치',
       'BOOT0 누른 채 VND042 USB를 노트북에 꽂고 BOOT0 떼기',
       '처음 한 번: Zadig에서 STM32 BOOTLOADER → WinUSB → Install Driver',
-      '`us_control_v5_fw_v2` 폴더의 PowerShell에서 `python -m platformio run -t upload`',
+      '`us_control_v5_fw_v3` 폴더의 PowerShell에서 `python -m platformio run -t upload`',
       '끝나면 USB를 뽑았다 다시 꽂기 → 장치 관리자 → 포트에 새 COM 포트 (USB 직렬 장치)',
     ],
   },
