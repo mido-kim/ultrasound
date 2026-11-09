@@ -96,6 +96,11 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   firmware folder. `adcDelayNs` is signed: v2 starts the ADC about 5 µs
   before the burst (t = 0), v1 3–6 µs after; `peakSkip(line)` = the 40
   samples after the burst plus those before it.
+- The console fits one laptop screen, the user's wish: no sentences on the
+  page (help goes in `title` tooltips and stage 4's guide). `FIT_QUERY` in
+  console.js = the fit block at the end of the console part of app.css; below
+  it the page stacks and scrolls. Anything that appears later must not push
+  the layout (see 채널 맵 편집, #con-view-warn: they sit over the page).
 - Pair lines (firmware v3, 수신 소자 row, A and M): fire `element`, receive
   `rx`. The header's bytes 46 and 47 hold rx and `rxSwitchUs` (µs from the
   burst, when LE went low; the MAX14866 takes up to 4 µs more). `isPair(line)`.

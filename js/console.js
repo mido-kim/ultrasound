@@ -26,6 +26,7 @@ const VIEW_KEY = 'usbringup.conview'; // the graph's time axis on this device (l
 const C_DEFAULT = 1540; // m/s: soft tissue average, what the phantom is taken as
 const C_MIN = 100;
 const C_MAX = 10000;
+const FIT_QUERY = '(min-width: 1000px) and (min-height: 560px)'; // app.css: all on one screen, the graph takes what's left
 
 const clampC = (c) => Math.min(C_MAX, Math.max(C_MIN, Math.round(Number(c)) || C_DEFAULT));
 
@@ -104,7 +105,8 @@ function mapPanelHtml() {
   const map = activeMap();
   const options = ['<option value="">보드 채널 그대로</option>',
     ...con.maps.map((m) => `<option value="${esc(m.id)}"${m.id === con.mapId ? ' selected' : ''}>${esc(m.name)}</option>`)].join('');
-  const head = `<div class="con-btns">
+  const head = `<div class="con-btns con-map-head">
+      <span class="lbl" title="어레이 소자 번호 순서대로, 각 소자가 꽂힌 보드 채널 (J1001 EL)을 골라요. 빈 칸 = 소자 없음">채널 맵</span>
       <select id="con-map" aria-label="쓸 채널 맵">${options}</select>
       <button type="button" data-act="con-map-new">+ 새 맵</button>
       ${map ? `<button type="button" data-act="con-map-edit" aria-expanded="${con.mapEdit}">${con.mapEdit ? '닫기' : '편집'}</button>` : ''}
@@ -114,6 +116,7 @@ function mapPanelHtml() {
   const cells = map.order.map((ch, k) => `<label class="con-map-cell"><span>소자 ${k + base}</span>
       <select id="con-map-${k}" data-k="${k}" aria-label="소자 ${k + base}의 보드 채널">${chOptions(ch)}</select></label>`).join('');
   return `${head}
+    <div class="con-map-edit">
     <div class="con-btns">
       <label class="field con-map-name">이름<input type="text" id="con-map-name" value="${esc(map.name)}" maxlength="40" autocomplete="off"></label>
       <label class="field">번호<select id="con-map-base">
@@ -125,7 +128,8 @@ function mapPanelHtml() {
       <button type="button" data-act="con-map-board">보드 순서로</button><button type="button" data-act="con-map-none">모두 비우기</button>
       <span class="spacer"></span><button type="button" class="danger" data-act="con-map-del">이 맵 지우기</button>
     </div>
-    <p class="small muted" id="con-map-saved">${savedHtml()}</p>`;
+    <p class="small muted" id="con-map-saved">${savedHtml()}</p>
+    </div>`;
 }
 
 function clashHtml() {
@@ -134,7 +138,7 @@ function clashHtml() {
 }
 
 function savedHtml() {
-  if (!con.mapSavedAt) return '바꾸면 바로 저장돼요.';
+  if (!con.mapSavedAt) return '';
   const d = new Date(con.mapSavedAt);
   return `저장됨 · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
@@ -188,77 +192,68 @@ function sendScanOrder() {
 // channels: the config/channels record (the 채널 맵s).
 export function consolePage(signedIn = true, channels = null) {
   con.maps = mapsOf(channels);
-  const head = `
+  if (!signedIn) {
+    return `
   <div class="page-head">
     <a class="back" href="#/boards">← 회로 보드 검증</a>
     <h1>펌웨어 콘솔</h1>
-    <p class="lede">VND042를 USB로 연결해서 버튼으로 명령을 보내고, 상태와 받은 줄을 한 화면에서 봐요. 터미널 · 뷰어 대신 써요.</p>
-  </div>`;
-  if (!signedIn) {
-    return `${head}
-    <div class="empty"><h2>로그인해야 써요</h2>
-      <p>펌웨어 콘솔은 로그인한 계정에서만 열려요.</p>
-      <button type="button" class="primary" data-act="use-cloud">로그인해서 같이 쓰기</button></div>`;
+  </div>
+  <div class="empty"><h2>로그인해야 써요</h2>
+    <button type="button" class="primary" data-act="use-cloud">로그인해서 같이 쓰기</button></div>`;
   }
   const supported = hasSerial() || isDev();
   const freqBtns = FREQ_LABELS.map((f, i) => `<button type="button" class="pick" data-act="con-freq" data-i="${i}">${f}</button>`).join('');
-  const modeBtns = ['A', 'M', 'B'].map((m) => `<button type="button" class="pick" data-act="con-mode" data-m="${m}">${m}</button>`).join('');
-  return `${head}
+  const modeTips = { A: '한 소자 한 줄', M: '한 소자를 시간 순으로 (움직임)', B: '소자를 바꿔 가며 16줄 단면' };
+  const modeBtns = ['A', 'M', 'B'].map((m) => `<button type="button" class="pick" data-act="con-mode" data-m="${m}" title="${modeTips[m]}">${m}</button>`).join('');
+  return `
   ${supported ? '' : `<div class="banner warn"><b>이 브라우저는 USB 시리얼을 못 써요</b>
-    <p>노트북에서 Chrome이나 Edge로 이 페이지를 열어 주세요. 휴대폰 · Safari · Firefox는 안 돼요.</p></div>`}
+    <p>노트북에서 Chrome이나 Edge로 열어 주세요.</p></div>`}
   <div class="con" id="con-root">
     <div class="con-bar" id="con-bar">${barHtml()}</div>
     <div class="con-grid">
       <div class="con-col">
-        <section class="con-panel" aria-labelledby="con-tx-h">
-          <h2 id="con-tx-h">보내기</h2>
-          <div class="con-row"><span class="lbl">송신</span>
-            <div class="con-btns">
-              <button type="button" data-act="con-shot" class="needs-link">단발 <span class="key">X</span></button>
-              <button type="button" data-act="con-arm" id="con-arm" class="needs-link">연속 <span class="key">R</span></button>
-              <button type="button" data-act="con-sweep" id="con-sweep" class="needs-link">MUX 스윕 <span class="key">T</span></button>
+        <section class="con-panel" aria-label="보내기">
+          <div class="con-go">
+            <button type="button" data-act="con-shot" class="needs-link" title="한 번 쏘고 정지">단발 <span class="key">X</span></button>
+            <button type="button" data-act="con-arm" id="con-arm" class="needs-link" title="정지할 때까지 계속 (두 번 눌러 시작)">연속 <span class="key">R</span></button>
+            <button type="button" data-act="con-sweep" id="con-sweep" class="needs-link" title="쏘지 않고 EL0 → EL15 차례로 연결">MUX 스윕 <span class="key">T</span></button>
+          </div>
+          <div class="con-row"><span class="lbl" title="96 MHz ÷ 정수라 이 8개뿐이에요. 3.8 MHz 소자는 3.840">MHz</span><div class="con-seg">${freqBtns}</div></div>
+          <div class="con-row"><span class="lbl">송신 소자</span><div class="con-els" id="con-els">${elButtonsHtml()}</div></div>
+          <div class="con-row">
+            <div class="con-rx-lbl">
+              <span class="lbl" title="다른 소자를 고르면 버스트 끝 10 µs 뒤 MUX가 그 소자로 바뀌어요. 그 앞은 송신 소자 신호예요. A · M 모드만">수신 소자</span>
+              <button type="button" class="pick" data-act="con-rx" data-e="" title="송신 소자로 받기">같음</button>
             </div>
-            <p class="con-help">단발 = 한 번 · 연속 = 정지까지 계속 · MUX 스윕 = 안 쏘고 EL0 → EL15만 차례로 이어 봄</p>
-          </div>
-          <div class="con-row"><span class="lbl">주파수 (MHz)</span><div class="con-seg">${freqBtns}</div>
-            <p class="con-help">96 MHz ÷ 정수라 이 8개뿐이에요. 3.8 MHz 소자는 3.840 (3사이클은 폭이 넓어 차이 없음)</p>
-          </div>
-          <div class="con-row"><span class="lbl" id="con-el-lbl"></span><div class="con-els" id="con-els">${elButtonsHtml()}</div></div>
-          <div class="con-row"><span class="lbl">수신 소자</span>
-            <div class="con-btns"><button type="button" class="pick" data-act="con-rx" data-e="">같은 소자</button></div>
             <div class="con-els" id="con-rxs">${elButtonsHtml('con-rx')}</div>
-            <p class="con-help" id="con-rx-help"></p>
           </div>
-          <div class="con-row"><span class="lbl">PRF (1초에 쏘는 횟수)</span>
-            <div class="con-btns">
+          <p class="con-help" id="con-rx-help"></p>
+          <div class="con-row"><span class="lbl" title="1초에 쏘는 횟수">PRF</span>
+            <div class="con-btns con-prf-row">
               <input type="number" id="con-prf" min="1" max="2000" step="1" value="${esc(typed('con-prf', con.want?.prf ?? 10))}" aria-label="PRF (Hz)"><span class="unit">Hz</span>
               <button type="button" data-act="con-prf" class="needs-link">적용</button>
+              <span class="spacer"></span>
+              <span class="lbl">모드</span><div class="con-seg con-modes">${modeBtns}</div>
             </div>
           </div>
-          <div class="con-row"><span class="lbl">모드</span><div class="con-seg con-modes">${modeBtns}</div>
-            <p class="con-help">A = 한 소자 한 줄 · M = 한 소자를 시간 순으로 (움직임) · B = 소자를 바꿔 가며 16줄 단면. A와 M은 쏘는 건 같고 화면만 달라요</p>
-          </div>
-          <p class="small" id="con-pending"></p>
-          <p class="small muted">설정은 보드가 다음 송신 때 적용해요. 정지 상태에서 바꾸면 상태 칸은 단발 뒤에 바뀌어요.</p>
         </section>
-        <section class="con-panel" aria-labelledby="con-st-h">
-          <div class="row"><h2 id="con-st-h">상태</h2><span class="spacer"></span><span class="small muted num" id="con-age"></span></div>
-          <div id="con-status">${statusHtml()}</div>
-          <div class="row">
+        <section class="con-panel" aria-label="상태">
+          <div class="con-btns">
+            <span id="con-state">${stateHtml()}</span>
+            <span class="small muted num" id="con-age"></span>
+            <span class="spacer"></span>
             <button type="button" data-act="con-status" class="needs-link">상태 다시 <span class="key">?</span></button>
-            <label class="con-check"><input type="checkbox" id="con-poll"${con.poll ? ' checked' : ''}> 1초마다 읽기</label>
+            <label class="con-check"><input type="checkbox" id="con-poll"${con.poll ? ' checked' : ''}> 1초마다</label>
           </div>
+          <div class="con-status" id="con-status">${statusHtml()}</div>
         </section>
-        <section class="con-panel" aria-labelledby="con-map-h">
-          <h2 id="con-map-h">채널 맵</h2>
-          <p class="con-help">어레이 소자 번호 순서대로, 각 소자가 꽂힌 보드 채널 (J1001 EL)을 골라요. 맵은 이름을 붙여 같이 저장되고, 이 노트북은 고른 맵을 기억해요. 빈 칸 = 소자 없음.</p>
+        <section class="con-panel con-map-panel" aria-label="채널 맵">
           <div class="con-map" id="con-map-body">${mapPanelHtml()}</div>
         </section>
       </div>
       <div class="con-col">
-        <section class="con-panel" aria-labelledby="con-ln-h">
-          <div class="row">
-            <h2 id="con-ln-h">받은 줄</h2><span class="spacer"></span>
+        <section class="con-panel con-main" aria-label="받은 줄">
+          <div class="con-btns con-view">
             <div class="con-seg con-axis" role="group" aria-label="세로축">
               <button type="button" class="pick" data-act="con-yunit" data-unit="V">V</button>
               <button type="button" class="pick" data-act="con-yunit" data-unit="code">코드</button>
@@ -267,37 +262,34 @@ export function consolePage(signedIn = true, channels = null) {
               <button type="button" class="pick" data-act="con-axis" data-axis="us">µs</button>
               <button type="button" class="pick" data-act="con-axis" data-axis="mm">mm</button>
             </div>
-            <button type="button" data-act="con-save" id="con-save">이 줄 CSV</button>
-          </div>
-          <div class="con-btns con-view">
-            <span class="lbl">보는 구간</span>
+            <span class="lbl" title="비우면 줄 처음 · 끝">보는 구간</span>
             <input type="number" id="con-lo" step="any" value="${esc(typed('con-lo', fmtAxis(con.view.lo)))}" aria-label="보는 구간 최소">
             <span class="unit">–</span>
             <input type="number" id="con-hi" step="any" value="${esc(typed('con-hi', fmtAxis(con.view.hi)))}" aria-label="보는 구간 최대">
             <span class="unit" id="con-view-unit">${con.view.axis === 'us' ? 'µs' : 'mm'}</span>
             <button type="button" data-act="con-view-all">전체</button>
-            <span class="spacer"></span>
             <label class="con-check" title="연조직 평균 1540 · 물 1480">음속
               <input type="number" id="con-c" min="${C_MIN}" max="${C_MAX}" step="1" value="${esc(typed('con-c', con.view.c))}" aria-label="음속 (m/s)"><span class="unit">m/s</span></label>
+            <span class="spacer"></span>
+            <button type="button" data-act="con-save" id="con-save">이 줄 CSV</button>
           </div>
-          <p class="small fail-t" id="con-view-warn"></p>
-          <div class="con-plot-box" id="con-plot-box"><canvas id="con-plot" role="img" aria-label="받은 줄 그래프"></canvas></div>
+          <div class="con-plot-box" id="con-plot-box"><canvas id="con-plot" role="img" aria-label="받은 줄 그래프"></canvas><p class="small fail-t" id="con-view-warn"></p></div>
           <div id="con-read">${readHtml()}</div>
           <div class="con-btns con-rec">
-            <button type="button" data-act="con-rec" id="con-rec-btn">● 녹화</button>
-            <span class="small num" id="con-rec-info"></span><span class="spacer"></span>
-            <button type="button" data-act="con-rec-csv" id="con-rec-csv">CSV</button>
-            <button type="button" data-act="con-rec-raw" id="con-rec-raw">원본 .usc4</button>
+            <button type="button" data-act="con-rec" id="con-rec-btn" title="받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄)">● 녹화</button>
+            <span class="small num" id="con-rec-info"></span>
+            <button type="button" data-act="con-rec-csv" id="con-rec-csv" title="한 행에 한 줄. V0–V${MAX_SAMPLES - 1} = 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us (버스트 = 0). 수신 소자를 따로 고른 줄이 있으면 V0 앞에 rx_ch · rx_element · rx_switch_us">CSV</button>
+            <button type="button" data-act="con-rec-raw" id="con-rec-raw" title="받은 바이트 그대로 (host_v3/usc4.py로 읽어요)">원본 .usc4</button>
             <button type="button" data-act="con-rec-clear" id="con-rec-clear">지우기</button>
+            <span class="spacer"></span>
+            <div class="con-raw">
+              <input type="text" id="con-raw" value="${esc(typed('con-raw', ''))}" placeholder="직접 보내기 (F3, E9, ?)" autocomplete="off" aria-label="직접 보낼 글자">
+              <button type="button" data-act="con-raw" class="needs-link">보내기</button>
+            </div>
           </div>
-          <p class="con-help">녹화: 받는 줄을 모드 · 소자 상관없이 다 모아요 (최대 ${REC_MAX.toLocaleString()}줄). CSV = 한 행에 한 줄, V0–V${MAX_SAMPLES - 1}는 전압 (V), 샘플 n의 시간 = adc_start_us + n × dt_us (버스트 = 0). 수신 소자를 따로 고른 줄이 있으면 V0 앞에 rx_ch · rx_element · rx_switch_us가 붙어요. 원본 = 받은 바이트 그대로 (host_v3/usc4.py로 읽어요).</p>
-        </section>
-        <section class="con-panel" aria-labelledby="con-log-h">
-          <div class="row"><h2 id="con-log-h">기록</h2><span class="spacer"></span><button type="button" data-act="con-clear">지우기</button></div>
-          <div class="con-log" id="con-log" aria-live="polite">${logHtml()}</div>
-          <div class="con-raw">
-            <input type="text" id="con-raw" value="${esc(typed('con-raw', ''))}" placeholder="직접 보내기 (예: F3, E9, ?)" autocomplete="off" aria-label="직접 보낼 글자">
-            <button type="button" data-act="con-raw" class="needs-link">보내기</button>
+          <div class="con-log-box">
+            <div class="con-log" id="con-log" aria-live="polite">${logHtml()}</div>
+            <button type="button" class="con-log-clear" data-act="con-clear" title="기록 지우기">지우기</button>
           </div>
         </section>
       </div>
@@ -324,52 +316,55 @@ function barHtml() {
   const btn = l
     ? '<button type="button" data-act="con-disconnect">끊기</button>'
     : `<button type="button" class="primary" data-act="con-connect"${con.connecting || !(hasSerial() || isDev()) ? ' disabled' : ''}>연결</button>`;
-  return `${chip}${btn}<span class="small muted con-hint">${l ? 'Esc = 정지' : '목록에서 USB 직렬 장치를 골라요'}</span>
+  return `<a class="back" href="#/boards">← 보드 검증</a><h1 class="con-title">펌웨어 콘솔</h1>${chip}${btn}<span class="small" id="con-pending"></span>
     <span class="spacer"></span>
-    <button type="button" class="stop" data-act="con-stop"${l ? '' : ' disabled'}>정지 <span class="key">S</span></button>`;
+    <button type="button" class="stop" data-act="con-stop" title="명령 S. 어느 화면에서든 Esc로도 멈춰요"${l ? '' : ' disabled'}>정지 <span class="key">Esc</span></button>`;
 }
+
+const stateHtml = () => {
+  const s = con.status;
+  return `<span class="con-state st-${s ? s.st : 0}">${s ? esc(STATES[s.st] ?? `st=${s.st}`) : '–'}</span>`;
+};
 
 function statusHtml() {
   const s = con.status;
-  if (!s) return `<p class="muted small">${con.link ? '상태를 기다리는 중…' : '연결하면 보드 상태가 여기 보여요.'}</p>`;
-  const faults = s.fault ? faultNames(s.fault).join(', ') || `0x${s.fault.toString(16)}` : '없음';
-  const tile = (k, v, cls = '') => `<div class="con-tile${cls}"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  const v = (x) => (s ? x : '–');
+  const faults = s?.fault ? faultNames(s.fault).join(', ') || `0x${s.fault.toString(16)}` : '없음';
+  const tile = (k, x, cls = '') => `<div class="con-tile${cls}"><span class="k">${k}</span><span class="v">${x}</span></div>`;
+  const rx = s && s.rx !== undefined && s.rx !== null && s.rx !== s.el ? ` → ${chText(s.rx)}` : '';
+  const who = s && s.mode !== 'B' ? ` · ${chText(s.el)}${rx}` : '';
   return `
-    <div class="con-state st-${s.st}">${esc(STATES[s.st] ?? `st=${s.st}`)}</div>
+    <div class="con-board" title="보드가 지금 쓰는 설정">${s ? `${s.f !== null ? `${FREQ_LABELS[s.f] ?? s.f} MHz` : '?'} · ${s.prf} Hz · ${esc(s.mode)}${who}` : '–'}</div>
     <div class="con-tiles">
-      ${tile('주파수', s.f !== null ? `${FREQ_LABELS[s.f] ?? s.f} MHz` : '?')}
-      ${tile('PRF', `${s.prf} Hz`)}
-      ${tile('송신 소자', chText(s.el))}
-      ${s.rx === undefined ? '' : tile('수신 소자', s.rx === null ? '같은 소자' : chText(s.rx))}
-      ${tile('모드', esc(s.mode))}
-      ${tile('보낸 줄 seq', s.seq)}
-      ${tile('설정 번호 cfg', s.cfg)}
-      ${tile('건너뜀 skip', s.skip, s.skip ? ' warn' : '')}
-      ${tile('USB 실패', s.txerr, s.txerr ? ' warn' : '')}
-      ${tile('늦음 late', s.late, s.late ? ' warn' : '')}
-      ${s.rxmiss ? tile('수신 전환 실패 rxmiss', s.rxmiss, ' warn') : ''}
-      ${tile('크리스털 hse', s.hse ? `${s.hse} MHz` : '없음 (내부 RC)', s.hse ? '' : ' warn')}
-      ${tile('고장 fault', esc(faults), s.fault ? ' bad' : '')}
+      ${tile('보낸 줄 seq', v(s?.seq))}
+      ${tile('설정 번호 cfg', v(s?.cfg))}
+      ${tile('건너뜀 skip', v(s?.skip), s?.skip ? ' warn' : '')}
+      ${tile('USB 실패', v(s?.txerr), s?.txerr ? ' warn' : '')}
+      ${tile('늦음 late', v(s?.late), s?.late ? ' warn' : '')}
+      ${tile('크리스털 hse', v(s?.hse ? `${s.hse} MHz` : '내부 RC'), s && !s.hse ? ' warn' : '')}
+      ${tile('고장 fault', v(esc(faults)), s?.fault ? ' bad wide' : '')}
+      ${s?.rxmiss ? tile('수신 전환 실패', s.rxmiss, ' warn') : ''}
     </div>`;
 }
 
 function readHtml() {
   const l = con.line;
-  if (!l) return '<p class="muted small">아직 받은 줄이 없어요. 단발을 누르면 한 줄이 와요.</p>';
   const st = con.stats;
+  const tile = (k, x, cls = '', tip = '') => `<div class="con-tile${cls}"${tip ? ` title="${esc(tip)}"` : ''}><span class="k">${k}</span><span class="v">${x}</span></div>`;
+  const peakTip = '버스트 직후 25 µs는 빼고 봐요';
+  if (!l) return `<div class="con-tiles con-read-tiles">${tile('최고 코드', '–', '', peakTip)}${tile('최저 · 평균 (V)', '–')}${tile('이 줄', '–')}${tile('받은 줄 · 1초에', '–')}${tile('빠진 줄 · CRC 오류', '–')}</div>`;
   const mhz = (l.txHz / 1e6).toFixed(3);
   const where = st.at >= 0 ? ` · ${sampleUs(l, st.at).toFixed(1)} µs (${depthMm(l, st.at, con.view.c).toFixed(1)} mm)` : '';
   const who = isPair(l) ? `${chText(l.element)} → ${chText(l.rx)}` : chText(l.element);
+  const lineTip = `${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps${isPair(l) ? ` · 수신 소자로 바뀐 때 = 버스트 뒤 ${l.rxSwitchUs} µs (스위치 최대 ${MUX_SETTLE_US} µs 더)` : ''}`;
   return `
-    <div class="con-tiles">
-      <div class="con-tile wide${st.sat ? ' bad' : ''}"><span class="k">최고 코드 (버스트 직후 빼고)</span><span class="v">${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}</span></div>
-      <div class="con-tile"><span class="k">최저 · 평균 (V)</span><span class="v">${codeToV(st.min).toFixed(3)} · ${codeToV(st.mean).toFixed(3)}</span></div>
-      <div class="con-tile"><span class="k">이 줄</span><span class="v">#${l.sequence} · ${who} · ${mhz} MHz · ${esc(l.mode)}</span></div>
-      <div class="con-tile"><span class="k">받은 줄 · 1초에</span><span class="v">${con.lines} · ${con.rate}</span></div>
-      <div class="con-tile${con.drops || con.badCrc ? ' warn' : ''}"><span class="k">빠진 줄 · CRC 오류</span><span class="v">${con.drops} · ${con.badCrc}</span></div>
-    </div>
-    <p class="small muted">${adcStartText(l)} · ${l.count}개 · ${(l.fsHz / 1e6).toFixed(1)} Msps · 깊이는 음속 ${con.view.c} m/s로</p>
-    ${isPair(l) ? `<p class="small muted">수신 소자로 바뀐 때: 버스트 뒤 ${l.rxSwitchUs} µs (스위치 최대 ${MUX_SETTLE_US} µs 더). 그 앞은 송신 소자 신호예요.</p>` : ''}`;
+    <div class="con-tiles con-read-tiles">
+      ${tile('최고 코드', `${st.peak} (${codeToV(st.peak).toFixed(3)} V)${where}${st.sat ? ' · SAT' : ''}`, st.sat ? ' bad' : '', peakTip)}
+      ${tile('최저 · 평균 (V)', `${codeToV(st.min).toFixed(3)} · ${codeToV(st.mean).toFixed(3)}`)}
+      ${tile('이 줄', `#${l.sequence} · ${who} · ${mhz} MHz · ${esc(l.mode)}`, '', lineTip)}
+      ${tile('받은 줄 · 1초에', `${con.lines} · ${con.rate}`)}
+      ${tile('빠진 줄 · CRC 오류', `${con.drops} · ${con.badCrc}`, con.drops || con.badCrc ? ' warn' : '')}
+    </div>`;
 }
 
 // v2 starts the ADC before the burst (adcDelayNs < 0), v1 after it.
@@ -379,7 +374,7 @@ function adcStartText(l) {
 }
 
 function logHtml() {
-  if (!con.log.length) return '<p class="muted small">보낸 명령과 받은 답이 여기 쌓여요.</p>';
+  if (!con.log.length) return '';
   return con.log.map((x) => `<div class="lg ${x.dir}"><span class="t num">${x.time}</span><span class="d">${x.dir === 'out' ? '→' : x.dir === 'in' ? '←' : '·'}</span><span class="w">${esc(x.text)}${x.code ? ` <code>${esc(x.code)}</code>` : ''}</span></div>`).join('');
 }
 
@@ -408,6 +403,7 @@ function paintAll() {
     con.barKey = key;
     setHtml('con-bar', barHtml());
   }
+  setHtml('con-state', stateHtml());
   setHtml('con-status', statusHtml());
   setHtml('con-read', readHtml());
   paintLog();
@@ -452,8 +448,6 @@ function paintControls() {
   root.querySelectorAll('.needs-link, [data-act="con-freq"], [data-act="con-el"], [data-act="con-mode"]').forEach((b) => (b.disabled = !on));
   const w = con.want || {};
   const s = con.status || {};
-  const elLbl = document.getElementById('con-el-lbl');
-  if (elLbl) elLbl.textContent = activeMap() ? `송신 소자 (${activeMap().name})` : '송신 소자 (EL)';
   root.querySelectorAll('[data-act="con-freq"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === (w.f ?? s.f))));
   root.querySelectorAll('[data-act="con-el"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.e) === (w.el ?? s.el))));
   root.querySelectorAll('[data-act="con-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === (w.mode ?? s.mode))));
@@ -467,7 +461,7 @@ function paintControls() {
   });
   const rxHelp = document.getElementById('con-rx-help');
   if (rxHelp) {
-    const text = oldFw ? '펌웨어 v3부터 돼요.' : modeB ? 'B 모드에서는 안 써요.' : '다른 소자를 고르면 버스트 끝 10 µs 뒤 MUX가 그 소자로 바뀌어요. 그 앞 구간은 송신 소자 신호예요. A · M 모드만.';
+    const text = oldFw ? '수신 소자는 펌웨어 v3부터 돼요.' : modeB ? 'B 모드에서는 수신 소자를 안 써요.' : '';
     if (rxHelp.textContent !== text) rxHelp.textContent = text;
   }
   root.querySelectorAll('[data-act="con-axis"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.axis === con.view.axis)));
@@ -476,7 +470,7 @@ function paintControls() {
   if (arm) {
     const asking = Date.now() < con.armUntil;
     arm.classList.toggle('arming', asking);
-    arm.innerHTML = asking ? '한 번 더 누르면 연속 송신' : '연속 <span class="key">R</span>';
+    arm.innerHTML = asking ? '한 번 더' : '연속 <span class="key">R</span>';
   }
   const sweep = document.getElementById('con-sweep');
   if (sweep) {
@@ -551,7 +545,7 @@ function paintAge() {
     return;
   }
   const sec = Math.floor((Date.now() - con.statusAt) / 1000);
-  el.textContent = sec < 1 ? '방금 읽음' : `${sec}초 전`;
+  el.textContent = sec < 3 ? '' : `${sec}초 전`;
 }
 
 // ---------------------------------------------------------------- plot
@@ -561,7 +555,7 @@ function drawPlot() {
   if (!cv) return;
   const w = cv.parentElement.clientWidth;
   if (!w) return;
-  const h = Math.round(Math.min(380, Math.max(220, w * 0.45)));
+  const h = matchMedia(FIT_QUERY).matches ? Math.max(180, cv.parentElement.clientHeight) : Math.round(Math.min(420, Math.max(240, w * 0.5)));
   const dpr = window.devicePixelRatio || 1;
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
     cv.width = Math.round(w * dpr);
@@ -587,13 +581,7 @@ function drawPlot() {
   ctx.strokeStyle = tok('--line');
   ctx.lineWidth = 1;
   ctx.strokeRect(L + 0.5, T + 0.5, pw - 1, ph - 1);
-  if (!line) {
-    ctx.fillStyle = tok('--muted');
-    ctx.font = body;
-    ctx.textAlign = 'center';
-    ctx.fillText(con.link ? '단발을 누르면 받은 줄이 여기 그려져요' : '연결하면 받은 줄이 여기 그려져요', L + pw / 2, T + ph / 2);
-    return;
-  }
+  if (!line) return;
   const n = line.samples.length;
   const unit = con.view.axis === 'us' ? 'µs (버스트 = 0)' : `mm (${con.view.c} m/s)`;
   const burst = burstAt(line); // sample index of the burst; < 0 when the line starts after it (v1)
@@ -664,7 +652,7 @@ function drawPlot() {
       ctx.fillStyle = tok('--warn');
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText('수신 소자로', x + 5, T + 22);
+      ctx.fillText(`수신 소자로 ${line.rxSwitchUs} µs`, x + 5, T + 22);
     }
     ctx.strokeStyle = tok('--danger');
     ctx.setLineDash([4, 4]);
@@ -713,6 +701,11 @@ function drawPlot() {
       ctx.lineTo(L + pw - 1, y);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.font = body;
+      ctx.fillStyle = tok('--warn');
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`수신 소자로 ${line.rxSwitchUs} µs`, L + 6, y + 3);
     }
     ctx.restore();
   }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0 — 2026-11-09
+
+- 펌웨어 콘솔 fits one laptop screen with no scrolling (from about 1000 × 560 px
+  of window): page 1575 px tall before at 1366 × 640. The filler sentences are
+  gone; what they explained is in title tooltips and stage 4's guide. Empty
+  states are `–`.
+- The graph takes what's left of the screen: 578 × 260 px before, about
+  980 × 350 at 1366 × 640. Its height stops at 420 px on big screens, and the
+  log grows instead.
+- 상태: one line for the board's applied settings instead of five tiles.
+  다음 송신 때 적용 moved to the top bar. 채널 맵 편집 opens over the page.
+
 ## 0.14.0 — 2026-11-09
 
 - For firmware **v3** (`../firmware/us_control_v5_fw_v3`, not yet on a board):
