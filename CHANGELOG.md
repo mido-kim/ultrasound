@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 — 2026-11-10
+
+- 어레이 설계: version 2-7 (v2-3 with the serpentine running right up to all
+  16 element pads, landing off-centre on each pad's top edge) joins the
+  설정 → 자료 옮기기 list and 목차's starting list.
+
 ## 0.15.0 — 2026-11-09
 
 - 펌웨어 콘솔 fits one laptop screen with no scrolling (from about 1000 × 560 px
