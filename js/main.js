@@ -1,6 +1,6 @@
 // Wearable Ultrasound: startup, sign-in, routing and the screens: home (pictures,
 // 메모판, 목차), board checks (list, one board, reference guide), array / phantom
-// protocols (runs, one run, the step editor) and settings.
+// protocols (runs, one run, the step editor), 회로 비교 and settings.
 // Pages are HTML strings put in #app; input is handled by delegation on #app.
 
 import { backupFile, csvFor, parseBackup } from './backup.js';
@@ -11,6 +11,7 @@ import {
   memoText, nextOrder, paintRuns, placesFor, runsOf, sanitizeMemo,
 } from './folders.js';
 import { CHANNELS_DOC, channelsRecord } from './chanmap.js';
+import { COMPARE_DATE, COMPARE_HTML, COMPARE_NAV } from './compare.js';
 import { consoleAction, consoleChange, consolePage, mountConsole } from './console.js';
 import { STAGE_DETAIL } from './fw-guide.js';
 import { GUIDE_HTML } from './guide.js';
@@ -143,11 +144,12 @@ function toast(text) {
 // '#/' home · '#/boards' · '#/b/<id>[/<stage n>]' one board · '#/guide' ·
 // '#/p/<kind>' runs · '#/p/<kind>/edit' step editor · '#/p/array/designs' design files ·
 // '#/r/<id>' one run · '#/meetings' meeting slides · '#/places' 자료 지도 · '#/settings' ·
-// '#/console' 펌웨어 콘솔
+// '#/console' 펌웨어 콘솔 · '#/compare' 회로 비교
 function route() {
   const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (a === 'boards') return { view: 'boards' };
   if (a === 'console') return { view: 'console' };
+  if (a === 'compare') return { view: 'compare' };
   if (a === 'meetings') return { view: 'meetings' };
   if (a === 'places') return { view: 'places' };
   if (a === 'b' && b) return { view: 'board', targetId: decodeURIComponent(b), stage: c !== undefined ? Number(c) : null };
@@ -192,6 +194,7 @@ function render(newPage = false) {
   const pages = {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
     edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, places: placesPage, settings: settingsPage, home: homePage,
+    compare: comparePage,
     console: () => consolePage(store.kind === 'cloud', state.config.get(CHANNELS_DOC)),
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
@@ -279,6 +282,7 @@ function homePage() {
     ${Object.entries(PROTO_KINDS).map(([k, K]) => card(`#/p/${k}`, K.name, K.blurb, protoSummary(k))).join('')}
     ${card('#/meetings', '미팅 자료', '미팅 슬라이드 모음', meetingsSummary())}
     ${card('#/places', '자료 지도', '자료가 어디에 있는지', placesSummary())}
+    ${card('#/compare', '회로 비교', 'USoP · WULPUS Pro Max · 우리 회로', `<p class="hub-status">${COMPARE_DATE} 기준</p>`)}
   </div>`;
 }
 
@@ -801,6 +805,19 @@ function guidePage() {
   </div>
   <nav class="guide-nav">${links.map(([id, t]) => `<a href="#/guide" data-scroll="${id}">${t}</a>`).join('')}</nav>
   <div class="guide">${GUIDE_HTML}</div>`;
+}
+
+// ---------------------------------------------------------------- 회로 비교 (compare.js)
+
+function comparePage() {
+  return `
+  <div class="page-head">
+    ${back('#/', '홈')}
+    <h1>회로 비교</h1>
+    <p class="lede">USoP · WULPUS Pro Max · 우리 회로. 논문 · 서플 · GitHub 기준이에요.</p>
+  </div>
+  <nav class="guide-nav">${COMPARE_NAV.map(([id, t]) => `<a href="#/compare" data-scroll="${id}">${t}</a>`).join('')}</nav>
+  <div class="guide compare">${COMPARE_HTML}</div>`;
 }
 
 // ---------------------------------------------------------------- array / phantom

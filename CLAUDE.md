@@ -129,6 +129,10 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   redraws).
 - `js/guide.js`: board reference HTML (maps, tables, power order, symptoms,
   open questions), shortened from `../us_control_v5.4_pcb_bringup_guide.html`.
+- `js/compare.js`: 회로 비교 (`#/compare`, a home card): USoP, WULPUS Pro Max
+  and ours. `COMPARE_TABLES` rows are [label, USoP, WULPUS, ours]; keep
+  "(계산)" on worked-out values and "출처에 없음" where a source is silent.
+  Sources and the check date are in the file's header comment.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from
   gstatic) share `subscribe(fn)` / `apply(ops)` over `COLLS`.
 - `css/app.css`: tokens on `:root` (light) and `:root[data-theme="dark"]`;

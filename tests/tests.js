@@ -1,4 +1,5 @@
 import { backupFile, csvFor, parseBackup } from '../js/backup.js';
+import { COMPARE_HTML, COMPARE_NAV, COMPARE_TABLES } from '../js/compare.js';
 import { ARRAY_DESIGNS } from '../js/designs.js';
 import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
 import { CHUNK, MAX_PICTURE, baseName, chunkCount, chunkId, chunkRanges, fileSize, isPicture, typeOf } from '../js/files.js';
@@ -583,6 +584,21 @@ test('memos: editor selection ↔ character offsets', () => {
   typed.innerHTML = '첫<div>둘</div>';                 // what Enter makes while typing
   eq(memoOffset(typed, typed.lastChild.firstChild, 0), 2);
   box.remove();
+});
+
+test('회로 비교: every row has a label and three filled cells, every nav link has its section', () => {
+  for (const [name, rows] of Object.entries(COMPARE_TABLES)) {
+    rows.forEach((r, i) => {
+      if (r.length !== 4 || r.some((c) => typeof c !== 'string' || !c.trim())) throw new Error(`${name} row ${i}: ${JSON.stringify(r)}`);
+    });
+  }
+  const page = document.createElement('div');
+  page.innerHTML = COMPARE_HTML;
+  for (const [id] of COMPARE_NAV) if (!page.querySelector(`#${id}`)) throw new Error(`no section #${id}`);
+  eq(page.querySelectorAll('table.cmp').length, Object.keys(COMPARE_TABLES).length, 'one table per list');
+  const cells = [...page.querySelectorAll('table.cmp tr')].map((tr) => tr.children.length);
+  if (cells.some((n) => n !== 4)) throw new Error(`a table row without 4 cells: ${cells.join(' ')}`);
+  if (/undefined|\$\{/.test(COMPARE_HTML)) throw new Error('leftover template text');
 });
 
 // ---- design files: every picture and file listed exists, at the listed size

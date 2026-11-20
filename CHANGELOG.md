@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.0 — 2026-11-20
+
+- New page **회로 비교** (`#/compare`, a card on the home screen): USoP (Xu
+  group, Nat Biotechnol 2023, main text and supplementary), WULPUS Pro Max
+  (its GitHub docs, hardware files and the WULPUS PRO arXiv paper) and our
+  circuit (main v5.4, HV v5.1, firmware v3) side by side. Tables for 한눈에,
+  송신, 수신, 데이터 · 전원 · 기판, 프로브 and 결과, then 차이 해설, a short list
+  of suggestions and the sources with links. Values worked out here say
+  (계산); the USoP pulse height read off its figure says (그림).
+- `js/compare.js` holds the content (`COMPARE_TABLES`, one row = label + the
+  three circuits). On a phone the tables scroll sideways.
+
 ## 0.15.1 — 2026-11-10
 
 - 어레이 설계: version 2-7 (v2-3 with the serpentine running right up to all

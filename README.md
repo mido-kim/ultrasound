@@ -27,6 +27,7 @@
 - **어레이 설계** (어레이 제작 → 설계 파일), **미팅 자료**: 앱에서 추가 · 편집. 항목마다 Drive 폴더 링크, 다른 링크 (Google Slides, Notion …), 폴더 안 파일 목록, 미리보기 그림 (5 MB까지, Firebase에 저장). 로그인한 두 계정만 볼 수 있어요.
 - **메모.** 미팅 · 설계 버전마다 메모를 남겨요. 누가 · 언제 썼는지 함께 보여요.
 - **자료 지도.** 자료가 어디에 있는지: Drive, Notion, PC 폴더, GitHub, Firebase. 주소는 누르면 열리고 PC 경로는 복사돼요.
+- **회로 비교.** USoP · WULPUS Pro Max · 우리 회로를 표로 나란히: 한눈에, 송신, 수신, 데이터 · 전원 · 기판, 프로브, 결과, 차이 해설, 자료 링크. 내용은 `js/compare.js`.
 - 홈 화면 맨 위 그림은 아무 미리보기 그림에서 "홈에 표시"로 골라요.
 - **설정.** 이름, 테마, 계정 · UID, 결과표 CSV, JSON 백업 · 복원.
 
@@ -72,6 +73,7 @@ http://localhost:5174 를 열어요. "로그인 없이 이 기기에서만 쓰�
 | `js/protocols.js` | 어레이 · 팬텀 프로토콜과 배치 |
 | `js/backup.js` | 결과표 CSV, JSON 백업 |
 | `js/guide.js` | 보드 지도와 표 |
+| `js/compare.js` | 회로 비교 (USoP · WULPUS Pro Max · 우리) |
 | `js/files.js` | 미리보기 그림을 Firestore에 조각으로 저장하는 규칙 |
 | `js/notes.js` | 미팅 · 설계 버전의 메모, 홈 메모판 |
 | `js/folders.js` | 홈 목차 (Drive 폴더 구조, 폴더 메모와 색) |
