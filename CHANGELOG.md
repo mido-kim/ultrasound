@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.17.0 — 2026-11-20
+
+- 회로 비교 gets pictures.
+  - **그림으로** (after 한눈에): three drawings of our own, inline SVG in both
+    themes: the transmit and receive paths of the three circuits on one
+    template (MCU → pulser → shared node → MUX → array, node → T/R → amps →
+    MCU), their transmit waveforms on one volt / µs scale, and which elements
+    fire and which listen in each shot.
+  - **논문 그림** (before 자료): WULPUS PRO Fig. 1, 2 and 10 (arXiv
+    2607.12137v2, CC BY-SA 4.0, credited; resized copies in `compare/`).
+    Below them a block only signed-in accounts see: USoP figures are
+    © Springer Nature, so they never go in this public repo. They're kept in
+    Firestore (`config/compare`), like the home pictures. 그림 편집: pick the
+    circuit and + 그림, ← → within a circuit, 편집 for caption · 출처 · 회로,
+    빼기 deletes the file too.
+- Tests: the page has the three drawings and the signed-in block sits in
+  논문 그림; picture records keep only entries with a file; the WULPUS files
+  exist (41 in all).
+
 ## 0.16.0 — 2026-11-20
 
 - New page **회로 비교** (`#/compare`, a card on the home screen): USoP (Xu

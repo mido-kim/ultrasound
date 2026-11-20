@@ -1,5 +1,5 @@
 import { backupFile, csvFor, parseBackup } from '../js/backup.js';
-import { COMPARE_HTML, COMPARE_NAV, COMPARE_TABLES } from '../js/compare.js';
+import { COMPARE_NAV, COMPARE_TABLES, compareImages, comparePageHtml, compareRecord } from '../js/compare.js';
 import { ARRAY_DESIGNS } from '../js/designs.js';
 import { HOME_FIGURE, MEETINGS } from '../js/meetings.js';
 import { CHUNK, MAX_PICTURE, baseName, chunkCount, chunkId, chunkRanges, fileSize, isPicture, typeOf } from '../js/files.js';
@@ -592,13 +592,23 @@ test('회로 비교: every row has a label and three filled cells, every nav lin
       if (r.length !== 4 || r.some((c) => typeof c !== 'string' || !c.trim())) throw new Error(`${name} row ${i}: ${JSON.stringify(r)}`);
     });
   }
+  const html = comparePageHtml('<p id="signed-in-pics"></p>');
   const page = document.createElement('div');
-  page.innerHTML = COMPARE_HTML;
+  page.innerHTML = html;
   for (const [id] of COMPARE_NAV) if (!page.querySelector(`#${id}`)) throw new Error(`no section #${id}`);
   eq(page.querySelectorAll('table.cmp').length, Object.keys(COMPARE_TABLES).length, 'one table per list');
   const cells = [...page.querySelectorAll('table.cmp tr')].map((tr) => tr.children.length);
   if (cells.some((n) => n !== 4)) throw new Error(`a table row without 4 cells: ${cells.join(' ')}`);
-  if (/undefined|\$\{/.test(COMPARE_HTML)) throw new Error('leftover template text');
+  if (/undefined|NaN|\$\{/.test(html)) throw new Error('leftover template text or a bad number');
+  eq(page.querySelectorAll('figure.cfig svg').length, 3, 'three drawings');
+  eq(!!page.querySelector('#c-figs #signed-in-pics'), true, 'the signed-in pictures go under 논문 그림');
+});
+
+test('회로 비교 pictures: only entries with a file; the record keeps its id', () => {
+  eq(compareImages(null), []);
+  eq(compareImages({ images: [{ file: 'a', sys: 'usop' }, null, { caption: 'no file' }] }).map((x) => x.file), ['a']);
+  const r = compareRecord([{ file: 'a', caption: 'Fig. 1', sys: 'usop', src: '' }], '미도');
+  eq([r.id, r.images.length, r.updatedBy, typeof r.updatedAt], ['compare', 1, '미도', 'string']);
 });
 
 // ---- design files: every picture and file listed exists, at the listed size
@@ -640,6 +650,21 @@ test('회로 비교: every row has a label and three filled cells, every nav lin
   if (HOME_FIGURE && !(await head(HOME_FIGURE.src)).ok) bad.push(HOME_FIGURE.src);
   if (HOME_FIGURE && !MEETINGS.some((m) => m.id === HOME_FIGURE.meeting)) bad.push('home picture points at no meeting');
   results.push([!bad.length, 'meeting slides: files exist, sizes and links look right', bad.join('\n      ')]);
+}
+
+// ---- 회로 비교: the WULPUS PRO figure copies the page shows exist
+{
+  const page = document.createElement('div');
+  page.innerHTML = comparePageHtml('');
+  const bad = [];
+  const imgs = [...page.querySelectorAll('.pfig img')];
+  if (!imgs.length) bad.push('no figures on the page');
+  for (const img of imgs) {
+    const src = img.getAttribute('src');
+    const r = await fetch(`../${src}`, { method: 'HEAD', cache: 'no-store' });
+    if (!r.ok) bad.push(`${src}: ${r.status}`);
+  }
+  results.push([!bad.length, '회로 비교: the WULPUS figure files exist', bad.join('\n      ')]);
 }
 
 // ---- report

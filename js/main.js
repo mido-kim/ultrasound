@@ -11,7 +11,9 @@ import {
   memoText, nextOrder, paintRuns, placesFor, runsOf, sanitizeMemo,
 } from './folders.js';
 import { CHANNELS_DOC, channelsRecord } from './chanmap.js';
-import { COMPARE_DATE, COMPARE_HTML, COMPARE_NAV } from './compare.js';
+import {
+  COMPARE_DATE, COMPARE_NAV, PIC_SOURCE, PIC_SYSTEMS, compareImages, comparePageHtml, compareRecord,
+} from './compare.js';
 import { consoleAction, consoleChange, consolePage, mountConsole } from './console.js';
 import { STAGE_DETAIL } from './fw-guide.js';
 import { GUIDE_HTML } from './guide.js';
@@ -817,7 +819,115 @@ function comparePage() {
     <p class="lede">USoP · WULPUS Pro Max · 우리 회로. 논문 · 서플 · GitHub 기준이에요.</p>
   </div>
   <nav class="guide-nav">${COMPARE_NAV.map(([id, t]) => `<a href="#/compare" data-scroll="${id}">${t}</a>`).join('')}</nav>
-  <div class="guide compare">${COMPARE_HTML}</div>`;
+  <div class="guide compare">${comparePageHtml(comparePictures())}</div>`;
+}
+
+// ---- 논문 그림 in Firestore (config/compare, compare.js): signed-in accounts only,
+// for figures that can't go on the public site. 그림 편집 shows + / move / edit.
+let compareEdit = false;
+let compareSys = 'usop'; // which circuit the next + 그림 files belong to
+const sysOf = (im) => im.sys || 'usop';
+
+function comparePictures() {
+  const head = '<h3>로그인한 사람만</h3>';
+  if (store.kind !== 'cloud') return `${head}<p class="muted small">USoP 그림은 저작권 때문에 공개 사이트에 없어요. 로그인하면 보여요.</p>`;
+  const all = compareImages(state.config.get('compare'));
+  const groups = PIC_SYSTEMS.map(([sys, name]) => {
+    const list = all.map((im, i) => ({ im, i })).filter(({ im }) => sysOf(im) === sys && state.files.has(im.file));
+    if (!list.length) return '';
+    const figs = list.map(({ im, i }, p) => {
+      const tools = compareEdit ? `<span class="pic-tools">
+          <button type="button" data-act="cmp-move" data-i="${i}" data-step="-1" aria-label="앞으로"${p === 0 ? ' disabled' : ''}>←</button>
+          <button type="button" data-act="cmp-move" data-i="${i}" data-step="1" aria-label="뒤로"${p === list.length - 1 ? ' disabled' : ''}>→</button>
+          <button type="button" data-act="cmp-pic" data-i="${i}">편집</button></span>` : '';
+      return `<figure class="pfig">${picture(im.file, im.caption || name)}
+        <figcaption><span>${esc(im.caption || '')}${im.src ? `<br><span class="muted">${esc(im.src)}</span>` : ''}</span>${tools}</figcaption></figure>`;
+    }).join('');
+    return `<h4>${esc(name)}</h4><div class="pfigs">${figs}</div>`;
+  }).join('');
+  const bar = `<div class="row home-pic-bar">
+      ${compareEdit ? `<select id="cmp-pic-sys" aria-label="어느 회로 그림">${PIC_SYSTEMS.map(([v, n]) => `<option value="${v}"${v === compareSys ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <label class="btn">+ 그림<input type="file" id="cmp-pic-file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" multiple hidden></label>` : ''}
+      <span class="spacer"></span>
+      <button type="button" class="link" data-act="cmp-edit">${compareEdit ? '다 했어요' : (all.length ? '그림 편집' : '+ 그림')}</button>
+    </div>`;
+  return `${head}<p class="muted small">저작권 때문에 공개 사이트에 못 올리는 그림이에요. 로그인한 두 계정만 봐요.</p>
+    ${groups || '<p class="muted small">아직 없어요.</p>'}${bar}`;
+}
+
+function saveCompareImages(images) {
+  commit([{ op: 'put', coll: 'config', obj: compareRecord(images, who().name) }]);
+}
+
+// ← → move a picture past the next one of the same circuit.
+function moveCompare(i, step) {
+  const all = compareImages(state.config.get('compare'));
+  if (!all[i]) return;
+  let j = i + step;
+  while (j >= 0 && j < all.length && sysOf(all[j]) !== sysOf(all[i])) j += step;
+  if (j < 0 || j >= all.length) return;
+  const out = [...all];
+  [out[i], out[j]] = [out[j], out[i]];
+  saveCompareImages(out);
+}
+
+async function addComparePictures(files, sys) {
+  const bad = [];
+  const good = files.filter((f) => {
+    if (!isPicture(f.type)) bad.push(`${f.name}: 그림이 아니에요`);
+    else if (f.size > MAX_PICTURE) bad.push(`${f.name}: ${fileSize(f.size)}`);
+    else return true;
+    return false;
+  });
+  if (bad.length) toast(`안 넣은 파일: ${bad.join(', ')}`);
+  if (!good.length) return;
+  if (!navigator.onLine) return toast('그림을 올리려면 인터넷 연결이 필요해요.');
+  let images = compareImages(state.config.get('compare'));
+  for (const [n, f] of good.entries()) {
+    try {
+      const meta = await store.uploadFile(f, { owner: 'compare', createdBy: who().name },
+        (i, total) => toast(`올리는 중 ${n + 1}/${good.length} · ${Math.round((100 * i) / total)}%`));
+      images = [...images, { file: meta.id, caption: baseName(f.name), sys, src: PIC_SOURCE[sys] || '' }];
+      saveCompareImages(images);
+    } catch (err) {
+      console.error(err);
+      return toast(`올리지 못했어요: ${err.message}`);
+    }
+  }
+  toast('그림을 넣었어요');
+}
+
+function comparePicDialog(i) {
+  const images = compareImages(state.config.get('compare'));
+  const im = images[i];
+  if (!im) return;
+  const dlg = openDialog(`
+  <form method="dialog" novalidate>
+    <h2>그림 편집</h2>
+    <div class="dlg-pic">${picture(im.file, im.caption)}</div>
+    <label class="field">설명<input type="text" name="caption" value="${esc(im.caption || '')}" autocomplete="off"></label>
+    <label class="field">출처<input type="text" name="src" value="${esc(im.src || '')}" autocomplete="off"></label>
+    <label class="field">회로<select name="sys">${PIC_SYSTEMS.map(([v, n]) => `<option value="${v}"${v === sysOf(im) ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+    <div class="actions">
+      <button type="button" class="danger left" data-del>빼기</button>
+      <button type="button" data-cancel>취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>`);
+  hydrateIn(dlg);
+  const f = dlg.querySelector('form');
+  dlg.querySelector('[data-del]').addEventListener('click', () => {
+    if (!confirm('이 그림을 빼고 그림 파일도 지울까요?')) return;
+    saveCompareImages(images.filter((_, j) => j !== i));
+    if (state.files.get(im.file)?.owner === 'compare') forgetFiles([im.file]);
+    dlg.close();
+  });
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveCompareImages(images.map((x, j) => (j === i
+      ? { ...x, caption: f.elements.caption.value.trim(), src: f.elements.src.value.trim(), sys: f.elements.sys.value } : x)));
+    dlg.close();
+  });
 }
 
 // ---------------------------------------------------------------- array / phantom
@@ -964,6 +1074,8 @@ function forgetFiles(ids) {
   }
   const images = homeImages(state.config.get('home'));
   if (images.some((x) => ids.includes(x.file))) saveHomeImages(images.filter((x) => !ids.includes(x.file)));
+  const cmp = compareImages(state.config.get('compare'));
+  if (cmp.some((x) => ids.includes(x.file))) saveCompareImages(cmp.filter((x) => !ids.includes(x.file)));
 }
 
 const pictureIdsOf = (item) => (item.images || []).map((x) => x.file);
@@ -1394,6 +1506,11 @@ function wireEvents() {
     } else if (t.id === 'home-pic-file' && t.files?.length) {
       addHomePictures([...t.files]);
       t.value = '';
+    } else if (t.id === 'cmp-pic-file' && t.files?.length) {
+      addComparePictures([...t.files], compareSys);
+      t.value = '';
+    } else if (t.id === 'cmp-pic-sys') {
+      compareSys = t.value;
     } else if (t.id === 'import-file' && t.files?.[0]) {
       importBackup(t.files[0]);
       t.value = '';
@@ -1461,6 +1578,11 @@ function onClick(e) {
       return render();
     case 'home-move': return saveHomeImages(moved(homeImages(state.config.get('home')), Number(el.dataset.i), Number(el.dataset.step)));
     case 'home-pic': return homePicDialog(Number(el.dataset.i));
+    case 'cmp-edit':
+      compareEdit = !compareEdit;
+      return render();
+    case 'cmp-move': return moveCompare(Number(el.dataset.i), Number(el.dataset.step));
+    case 'cmp-pic': return comparePicDialog(Number(el.dataset.i));
     case 'toc-toggle':
       toggleFolder(el.dataset.id);
       return render();

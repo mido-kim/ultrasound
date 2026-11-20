@@ -133,6 +133,12 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   and ours. `COMPARE_TABLES` rows are [label, USoP, WULPUS, ours]; keep
   "(계산)" on worked-out values and "출처에 없음" where a source is silent.
   Sources and the check date are in the file's header comment.
+  `comparePageHtml(signedInPics)` builds the page; the drawings are inline SVG
+  made there (`.cfig` classes in app.css, body font, tokens only). Pictures:
+  only openly licensed figures go in `compare/` (WULPUS PRO, CC BY-SA 4.0,
+  credited). Copyrighted ones (USoP, © Springer Nature) go in Firestore
+  `config/compare` (`{ images: [{ file, caption, sys, src }] }`), shown by
+  `comparePictures()` in main.js to signed-in accounts only.
 - `js/store.js` (localStorage) and `js/cloud.js` (Firebase, SDK 12.6.0 from
   gstatic) share `subscribe(fn)` / `apply(ops)` over `COLLS`.
 - `css/app.css`: tokens on `:root` (light) and `:root[data-theme="dark"]`;

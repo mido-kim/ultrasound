@@ -492,7 +492,43 @@ svg text.p1 { font-size: 9px; font-weight: 600; fill: var(--danger); }
 .cmp .ours { background: var(--accent-soft); }
 .cmp-list { display: grid; gap: 8px; max-width: 80ch; margin: 0; padding-left: 20px; }
 .compare h3 { font-size: 15px; }
+.compare h4 { font-size: 14px; margin: 0; }
 .compare ul, .compare ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+/* Our drawings (inline SVG in compare.js): tokens only, so dark works; text in the body font. */
+.cfig { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.cfig-scroll { overflow-x: auto; }
+.cfig-scroll > svg { display: block; width: 100%; min-width: 680px; height: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.cfig figcaption { font-size: 13px; color: var(--muted); max-width: 80ch; }
+.cfig text { font-family: var(--f-body); fill: var(--fg); font-size: 12px; }
+.cfig text.b { font-weight: 600; }
+.cfig text.t { font-size: 14px; font-weight: 600; }
+.cfig text.s { fill: var(--muted); font-size: 11px; }
+.cfig .bx { fill: var(--surface); stroke: var(--muted); stroke-width: 1; }
+.cfig .bx.tx { stroke: var(--danger); }
+.cfig .bx.rx { stroke: var(--accent); }
+.cfig .lane-ours { fill: var(--accent-soft); }
+.cfig .ln, .cfig .ln-tx, .cfig .ln-rx { fill: none; stroke-width: 1.6; }
+.cfig .ln { stroke: var(--muted); }
+.cfig .ln-tx { stroke: var(--danger); }
+.cfig .ln-rx { stroke: var(--accent); }
+.cfig .mk-tx { fill: var(--danger); }
+.cfig .mk-rx { fill: var(--accent); }
+.cfig .node { fill: var(--fg); }
+.cfig .grid { stroke: var(--line); stroke-width: 1; }
+.cfig .zero { stroke: var(--muted); stroke-width: 1; }
+.cfig .wave { fill: none; stroke: var(--danger); stroke-width: 2; stroke-linejoin: round; }
+.cfig .el { fill: var(--surface); stroke: var(--muted); stroke-width: 1; }
+.cfig .el.fire { fill: var(--danger); stroke: var(--danger); }
+.cfig .el.listen { stroke: var(--accent); stroke-width: 3; }
+/* Paper figures: public WULPUS copies and the signed-in Firestore ones. */
+.pfigs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
+.pfig .pic-tools { flex: none; }
+.pfig .pic-tools button { white-space: nowrap; }
+.compare .home-pic-bar select { width: auto; }
+.pfig { margin: 0; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.pfig.wide { grid-column: 1 / -1; }
+.pfig img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+.pfig figcaption { display: flex; gap: 8px; justify-content: space-between; align-items: start; font-size: 13px; }
 
 /* ---------------------------------------------------------------- 펌웨어 콘솔 */
 /* Compact on purpose: few words on the page, help in title tooltips and stage 4's guide. */

@@ -6,13 +6,17 @@
 //   Ours: main v5.4 + HV v5.1 schematics, firmware v3, this app.
 // Checked 2026-11-20. (계산) = worked out here, (그림) = read off a paper figure,
 // 출처에 없음 = not found in that system's sources.
+// Pictures: the drawings below are our own (inline SVG). The WULPUS PRO figures
+// in compare/ are CC BY-SA 4.0 (credited on the page). USoP figures are
+// © Springer Nature, so they never go in this public repo: they live in
+// Firestore (config/compare, compareImages below) and show to signed-in accounts.
 // Template strings: write a backslash twice, and never put ${ in the text.
 
 export const COMPARE_DATE = '2026-11-20';
 
 export const COMPARE_NAV = [
-  ['c-glance', '한눈에'], ['c-tx', '송신'], ['c-rx', '수신'], ['c-sys', '데이터 · 전원 · 기판'],
-  ['c-probe', '프로브'], ['c-result', '결과'], ['c-diff', '차이 해설'], ['c-src', '자료'],
+  ['c-glance', '한눈에'], ['c-draw', '그림으로'], ['c-tx', '송신'], ['c-rx', '수신'], ['c-sys', '데이터 · 전원 · 기판'],
+  ['c-probe', '프로브'], ['c-result', '결과'], ['c-diff', '차이 해설'], ['c-figs', '논문 그림'], ['c-src', '자료'],
 ];
 
 // Each row: [label, USoP, WULPUS Pro Max, ours].
@@ -49,7 +53,7 @@ export const COMPARE_TABLES = {
     ['이득', '×220, 잡음 이득 221', 'AD8338 VGA 0–74 dB', '×11 × ×11 = ×121'],
     ['깊이 보정 (TGC)', '블록도엔 VGA. 회로도엔 수동 가변저항만', '있음. RC 경사 + 디지털 가변저항', '없음'],
     ['앰프 대역', '약 7 MHz (계산)', '14 MHz (0.3–14.3 MHz)', '단마다 약 360 MHz (계산)'],
-    ['검파 앞 필터', '앰프가 대역을 자름', '능동 저역 필터', '없음'],
+    ['검파 앞 필터', '앰프가 대역을 자름', '능동 저역 필터 (4 MHz)', '없음'],
     ['검파', '없음, RF 그대로', 'LT5507, 켜고 끌 수 있음', '1N5711W 다이오드 + 대역 RC (J601)'],
     ['ADC', 'PIC32MZ 내장, 12 Msps', 'MSP430FR5043 내장, 8 Msps', 'STM32F411 내장, 1.6 Msps'],
     ['쓸 수 있는 대역', '6 MHz까지 (나이퀴스트)', '1.4 MHz (0.2–1.6 MHz). 3 MHz까지 SNR 30 dB 넘음', '포락선 약 0.2 MHz (계산)'],
@@ -90,44 +94,196 @@ const table = (rows) => `<div class="tw"><table class="cmp">${HEAD}${rows.map(([
 const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 const WP = 'https://github.com/Sergio5714/wulpus-pro-max';
 
-export const COMPARE_HTML = `
-<div class="note info">
-  <span class="tag">읽는 법</span>
-  <p>${COMPARE_DATE} 기준이에요. (계산)은 여기서 계산한 값, (그림)은 논문 그림에서 잰 값이에요. 나머지는 출처에 적힌 그대로예요.</p>
-</div>
+// ---------------------------------------------------------------- drawings
+// Inline SVG, our own. Colors come from the app's tokens through the .cfig
+// classes in app.css (light and dark); text uses the body font.
 
-<section id="c-glance" class="stack">
-  <h2>한눈에</h2>
-  ${table(COMPARE_TABLES.glance)}
-</section>
+const T = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const r1 = (n) => Math.round(n * 10) / 10;
 
-<section id="c-tx" class="stack">
-  <h2>송신</h2>
-  ${table(COMPARE_TABLES.tx)}
-</section>
+// A box with centered lines: the first bold, the rest small.
+function box(x, y, w, h, lines, cls = '') {
+  const lh = 15;
+  const top = y + h / 2 - ((lines.length - 1) * lh) / 2 + 4;
+  const text = lines.map((s, i) => `<text class="${i ? 's' : 'b'}" x="${r1(x + w / 2)}" y="${r1(top + i * lh)}" text-anchor="middle">${T(s)}</text>`).join('');
+  return `<rect class="bx ${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/>${text}`;
+}
 
-<section id="c-rx" class="stack">
-  <h2>수신</h2>
-  ${table(COMPARE_TABLES.rx)}
-</section>
+const MARK = { 'ln-tx': 'cmp-ah-tx', 'ln-rx': 'cmp-ah-rx' };
+const arrow = (x1, y1, x2, y2, cls) => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"${MARK[cls] ? ` marker-end="url(#${MARK[cls]})"` : ''}/>`;
 
-<section id="c-sys" class="stack">
-  <h2>데이터 · 전원 · 기판</h2>
-  ${table(COMPARE_TABLES.sys)}
-</section>
+const marker = (id, cls) => `<marker id="${id}" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="${cls}" d="M0,0 L8,4 L0,8 z"/></marker>`;
 
-<section id="c-probe" class="stack">
-  <h2>프로브</h2>
-  ${table(COMPARE_TABLES.probe)}
-</section>
+// One lane of the signal-path drawing: MCU on the left, MUX and array on the
+// right, transmit along the top row to the shared node, receive from the
+// node down through the T/R switch and back left to the MCU.
+const CHAIN_W = 1200;
+const LANE_H = 150;
+function chainLane(k, d) {
+  const y0 = 40 + k * LANE_H;
+  const ty = y0 + 30, ry = y0 + 92, bh = 46, full = ry + bh - ty;
+  const tc = ty + bh / 2, rc = ry + bh / 2;
+  const NX = 900, MUX_X = 980, MUX_W = 100, AR_X = 1104, AR_W = 84;
+  let s = d.ours ? `<rect class="lane-ours" x="2" y="${y0 + 4}" width="${CHAIN_W - 4}" height="${LANE_H - 2}" rx="10"/>` : '';
+  s += `<text class="t" x="14" y="${y0 + 22}">${T(d.title)}</text>`;
+  s += box(12, ty, 124, full, d.mcu, 'mcu');
+  let prev = 136;
+  d.tx.forEach((b, i) => {
+    const x = 160 + i * 164;
+    s += arrow(prev, tc, x - 1, tc, 'ln-tx') + box(x, ty, 140, bh, b, 'tx');
+    prev = x + 140;
+  });
+  s += `<line class="ln-tx" x1="${prev}" y1="${tc}" x2="${NX}" y2="${tc}"/>`;
+  s += `<line class="ln" x1="${NX}" y1="${tc}" x2="${MUX_X}" y2="${tc}"/>`;
+  s += `<circle class="node" cx="${NX}" cy="${tc}" r="4"/><text class="s" x="${NX}" y="${tc - 10}" text-anchor="middle">${T(d.node)}</text>`;
+  s += box(MUX_X, ty, MUX_W, full, d.mux, 'mux');
+  s += `<line class="ln" x1="${MUX_X + MUX_W}" y1="${ty + full / 2}" x2="${AR_X}" y2="${ty + full / 2}"/>`;
+  s += box(AR_X, ty, AR_W, full, d.arr, 'arr');
+  const TR_X = NX - 60;
+  s += arrow(NX, tc + 4, NX, ry - 1, 'ln-rx') + box(TR_X, ry, 120, bh, d.tr, 'rx');
+  let left = TR_X;
+  d.rx.forEach((b) => {
+    const x = left - 18 - 118;
+    s += arrow(left, rc, x + 118 + 1, rc, 'ln-rx') + box(x, ry, 118, bh, b, 'rx');
+    left = x;
+  });
+  s += arrow(left, rc, 137, rc, 'ln-rx');
+  return s;
+}
 
-<section id="c-result" class="stack">
-  <h2>결과</h2>
-  ${table(COMPARE_TABLES.result)}
-</section>
+const CHAINS = [
+  {
+    title: 'USoP',
+    mcu: ['ATmega328P', '시퀀서', 'PIC32MZ ADC', 'ESP32-S3 Wi-Fi'],
+    tx: [['부스트', '390 µH → HVDC'], ['CPH3459 스위치', '임펄스 약 100 V']],
+    node: '10 nF 결합',
+    mux: ['MAX14866 ×2', '32채널'],
+    arr: ['어레이', '1-3 PZT-5H'],
+    tr: ['MD0101', 'T/R'],
+    rx: [['1 nF · 120 Ω', '종단'], ['ADA4895', '×220 (47 dB)'], ['ADA4897', '버퍼 ×2']],
+  },
+  {
+    title: 'WULPUS Pro Max',
+    mcu: ['MSP430FR5043', 'PPG 펄스', 'ADC 8 Msps', 'SPI → 호스트'],
+    tx: [['IXDD604 펄서', '0–30 V · LT3463']],
+    node: '한 점 연결',
+    mux: ['HV2707', '16채널'],
+    arr: ['어레이', 'PZT · CMUT'],
+    tr: ['MD0100', 'T/R'],
+    rx: [['OPA836', '6 dB 버퍼'], ['AD8338 VGA', 'TGC 0–74 dB'], ['LT5507', '포락선 (선택)'], ['저역 필터', '4 MHz']],
+  },
+  {
+    title: '우리 (main v5.4 + HV v5.1)',
+    ours: true,
+    mcu: ['STM32F411', 'TIM1 · SPI', 'ADC 1.6 Msps', 'USB → 콘솔'],
+    tx: [['허가 게이트', 'ARM·WINDOW·PGOOD'], ['MD1213', '게이트 구동 ±5 V'], ['TC6320', '±48 V (B0524S ×4)']],
+    node: 'BUS · R701 · R702',
+    mux: ['MAX14866', '16채널'],
+    arr: ['v2-5', 'PZT 판 16개'],
+    tr: ['MD0100', 'T/R'],
+    rx: [['BAV99 클램프', 'VMID 1.65 V'], ['LMH6629 ×2', '×121 (41.7 dB)'], ['1N5711W', '다이오드 검파'], ['RC · OPA320', '버퍼 → TP605']],
+  },
+];
 
-<section id="c-diff" class="stack">
-  <h2>차이 해설</h2>
+function chainSvg() {
+  const h = 40 + CHAINS.length * LANE_H + 6;
+  const legend = `<line class="ln-tx" x1="14" y1="18" x2="44" y2="18"/><text class="s" x="50" y="22">송신 (고전압)</text>`
+    + `<line class="ln-rx" x1="150" y1="18" x2="180" y2="18"/><text class="s" x="186" y="22">수신 (에코)</text>`
+    + `<line class="ln" x1="276" y1="18" x2="306" y2="18"/><text class="s" x="312" y="22">송수신 같이 (마디 → MUX → 소자)</text>`;
+  return `<svg viewBox="0 0 ${CHAIN_W} ${h}" role="img" aria-label="세 회로의 송신 · 수신 경로">
+    <defs>${marker('cmp-ah-tx', 'mk-tx')}${marker('cmp-ah-rx', 'mk-rx')}</defs>
+    ${legend}${CHAINS.map((d, k) => chainLane(k, d)).join('')}</svg>`;
+}
+
+// Transmit waveforms on one scale: volts up, µs across.
+function burst(start, f, n, hi, lo) {
+  const half = 1 / f / 2;
+  const pts = [[0, 0], [start, 0]];
+  for (let i = 0; i < n; i++) {
+    const t = start + 2 * i * half;
+    pts.push([t, hi], [t + half, hi], [t + half, lo], [t + 2 * half, lo]);
+  }
+  pts.push([start + 2 * n * half, 0], [1.5, 0]);
+  return pts;
+}
+const WAVES = [
+  { title: 'USoP', sub: '약 100 V 음의 임펄스 1번', pts: [[0, 0], [0.3, 0], [0.31, -100], [0.45, -100], [0.47, 0], [1.5, 0]] },
+  { title: 'WULPUS Pro Max', sub: '0–30 V 사각 펄스, 개수 조절', pts: burst(0.2, 2.25, 3, 30, 0) },
+  { title: '우리', sub: '±48 V 사각 3사이클', pts: burst(0.2, 3.84, 3, 48, -48), ours: true },
+];
+
+function waveSvg() {
+  const cy = 145, vs = 0.72, us = 220;
+  const panels = WAVES.map((w, i) => {
+    const x0 = 10 + i * 395, px0 = x0 + 44;
+    const X = (t) => r1(px0 + t * us), Y = (v) => r1(cy - v * vs);
+    const grid = [100, 50, 0, -50, -100].map((v) => `<line class="${v ? 'grid' : 'zero'}" x1="${px0}" y1="${Y(v)}" x2="${X(1.5)}" y2="${Y(v)}"/>`
+      + `<text class="s" x="${px0 - 6}" y="${Y(v) + 4}" text-anchor="end">${v > 0 ? '+' : ''}${v === 0 ? 0 : String(v).replace('-', '−')}</text>`).join('');
+    const ticks = [0, 0.5, 1, 1.5].map((t) => `<text class="s" x="${X(t)}" y="250" text-anchor="middle">${t}${t === 1.5 ? ' µs' : ''}</text>`).join('');
+    const path = w.pts.map(([t, v], j) => `${j ? 'L' : 'M'}${X(t)},${Y(v)}`).join(' ');
+    return `${w.ours ? `<rect class="lane-ours" x="${x0}" y="4" width="385" height="256" rx="10"/>` : ''}
+      <text class="t" x="${px0}" y="24">${T(w.title)}</text><text class="s" x="${px0}" y="40">${T(w.sub)}</text>
+      ${grid}${ticks}<path class="wave" d="${path}"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 1200 264" role="img" aria-label="세 회로의 송신 파형, 같은 눈금">${panels}</svg>`;
+}
+
+// Which elements fire and which listen, shot by shot (8 elements drawn).
+const SCHEMES = [
+  { title: 'USoP', rows: [['줄 1', 'b.......'], ['줄 2', '.b......']], note: ['한 소자로 쏘고 같은 소자로 들어요.', '소자를 차례로 바꿔 소프트웨어로 합쳐요.'] },
+  { title: 'WULPUS Pro Max', rows: [['줄 1', 'bfffffff'], ['줄 2', 'fbffffff']], note: ['전 채널이 같이 쏘고 한 채널만 들어요.', '16번 쏘면 한 장 (PRF ÷ 16).'] },
+  { title: '우리', ours: true, rows: [['줄 1', 'b.......'], ['줄 2', '.b......'], ['짝 줄 (v3)', 'fl......']], note: ['한 소자로 쏘고 들어요. 소자 바꿀 때 한 틱 쉬어요.', '짝 줄은 한 소자로 쏘고 다른 소자로 들어요.'] },
+];
+const EL_CLS = { b: 'el fire listen', f: 'el fire', l: 'el listen', '.': 'el' };
+
+function schemeSvg() {
+  const panels = SCHEMES.map((d, i) => {
+    const x0 = 10 + i * 395;
+    const rows = d.rows.map(([label, cells], j) => {
+      const y = 40 + j * 34;
+      return `<text class="s" x="${x0 + 14}" y="${y + 16}">${T(label)}</text>`
+        + [...cells].map((c, n) => `<rect class="${EL_CLS[c]}" x="${x0 + 104 + n * 30}" y="${y}" width="22" height="22" rx="3"/>`).join('');
+    }).join('');
+    const note = d.note.map((s, j) => `<text class="s" x="${x0 + 14}" y="${150 + j * 17}">${T(s)}</text>`).join('');
+    return `${d.ours ? `<rect class="lane-ours" x="${x0}" y="4" width="385" height="190" rx="10"/>` : ''}<text class="t" x="${x0 + 14}" y="26">${T(d.title)}</text>${rows}${note}`;
+  }).join('');
+  const legend = `<rect class="el fire" x="14" y="206" width="16" height="16" rx="3"/><text class="s" x="36" y="219">쏨</text>`
+    + `<rect class="el listen" x="74" y="206" width="16" height="16" rx="3"/><text class="s" x="96" y="219">들음</text>`
+    + `<rect class="el fire listen" x="146" y="206" width="16" height="16" rx="3"/><text class="s" x="168" y="219">둘 다</text>`
+    + `<text class="s" x="220" y="219">소자 8개만 그렸어요</text>`;
+  return `<svg viewBox="0 0 1200 230" role="img" aria-label="한 번 쏠 때 쏘는 소자와 듣는 소자">${panels}${legend}</svg>`;
+}
+
+const fig = (svg, caption) => `<figure class="cfig"><div class="cfig-scroll">${svg}</div><figcaption>${caption}</figcaption></figure>`;
+
+// ---------------------------------------------------------------- paper figures
+// WULPUS PRO, arXiv 2607.12137v2, CC BY-SA 4.0: resized copies in compare/.
+const WULPUS_FIGS = [
+  { src: 'compare/wulpus_pro_fig1.jpg', w: 1600, h: 1117, wide: true, cap: '<b>Fig. 1</b> 블록도 (a), 평가 보드 (b), polyCMUT를 단 모듈 (c)' },
+  { src: 'compare/wulpus_pro_fig2.png', w: 1838, h: 717, wide: true, cap: '<b>Fig. 2</b> 전원: 호스트가 배터리 · 3.3 V · 5 V를 주고, LT3463이 ±30 V를 만들어요' },
+  { src: 'compare/wulpus_pro_fig10.png', w: 348, h: 383, cap: '<b>Fig. 10</b> 2.25 MHz 어레이 B 모드 (CIRS 팬텀, 3 cm)' },
+];
+
+const paperFig = (f) => `<figure class="pfig${f.wide ? ' wide' : ''}">
+  <a href="${f.src}" target="_blank" rel="noopener"><img src="${f.src}" width="${f.w}" height="${f.h}" alt="" loading="lazy" decoding="async"></a>
+  <figcaption><span>${f.cap}</span></figcaption></figure>`;
+
+// Pictures in Firestore (config/compare), for signed-in accounts only:
+//   { id: 'compare', images: [{ file, caption, sys, src }], updatedAt, updatedBy }
+export const PIC_SYSTEMS = [['usop', 'USoP'], ['wulpus', 'WULPUS Pro Max'], ['ours', '우리']];
+export const PIC_SOURCE = {
+  usop: 'Lin et al., Nat. Biotechnol. 42, 448–457 (2024). © Springer Nature',
+  wulpus: 'Vostrikov et al., arXiv 2607.12137v2. CC BY-SA 4.0',
+  ours: '',
+};
+export const compareImages = (rec) => (Array.isArray(rec?.images) ? rec.images.filter((x) => x && x.file) : []);
+export const compareRecord = (images, by) => ({ id: 'compare', images, updatedAt: new Date().toISOString(), updatedBy: by });
+
+// ---------------------------------------------------------------- the page
+
+const section = (id, title, body) => `<section id="${id}" class="stack">\n  <h2>${title}</h2>\n  ${body}\n</section>`;
+
+const DIFF_HTML = `
   <ul class="cmp-list">
     <li><b>송신 전압.</b> USoP 약 100 V, 우리 96 Vpp, WULPUS 30 V예요. WULPUS는 전 채널 동시 송신, 상용 어레이, 좁은 수신 대역, TGC, RF 빔포밍으로 낮은 전압을 메워요.</li>
     <li><b>수신 대역.</b> USoP는 앰프가 약 7 MHz에서, WULPUS는 약 1.4 MHz에서 잘라요. 우리는 검파 앞에 필터가 없어 수백 MHz 잡음까지 정류해요.</li>
@@ -150,11 +306,9 @@ export const COMPARE_HTML = `
       <li>TGC (VGA)</li>
       <li>다음 세대: RF 디지털화 (10 Msps급 ADC)</li>
     </ol>
-  </div>
-</section>
+  </div>`;
 
-<section id="c-src" class="stack">
-  <h2>자료</h2>
+const SOURCES_HTML = `
   <div class="two">
     <div class="stack">
       <h3>USoP</h3>
@@ -181,5 +335,30 @@ export const COMPARE_HTML = `
         <li>${link('https://github.com/mido-kim/ultrasound', 'GitHub')} 이 앱 코드</li>
       </ul>
     </div>
-  </div>
-</section>`;
+  </div>`;
+
+// The whole page body; `signedInPics` is the Firestore picture block from main.js.
+export function comparePageHtml(signedInPics = '') {
+  return `
+<div class="note info">
+  <span class="tag">읽는 법</span>
+  <p>${COMPARE_DATE} 기준이에요. (계산)은 여기서 계산한 값, (그림)은 논문 그림에서 잰 값이에요. 나머지는 출처에 적힌 그대로예요.</p>
+</div>
+${section('c-glance', '한눈에', table(COMPARE_TABLES.glance))}
+${section('c-draw', '그림으로', `
+  ${fig(chainSvg(), '송신은 위 줄 (MCU → 펄서 → 마디), 수신은 아래 줄 (마디 → T/R → 앰프 → MCU). 세 회로 모두 펄서와 T/R이 한 마디에서 MUX로 이어져요.')}
+  ${fig(waveSvg(), '같은 눈금 (세로 V, 가로 µs). USoP 높이는 그림에서 잰 값이고, 펄스 폭 · WULPUS 개수와 주파수 (2.25 MHz) · 우리 주파수 (3.84 MHz)는 예시예요.')}
+  ${fig(schemeSvg(), '한 번 쏠 때 어느 소자가 쏘고 어느 소자가 듣는지. WULPUS는 16채널을 다 쓰고, USoP는 32채널이에요.')}`)}
+${section('c-tx', '송신', table(COMPARE_TABLES.tx))}
+${section('c-rx', '수신', table(COMPARE_TABLES.rx))}
+${section('c-sys', '데이터 · 전원 · 기판', table(COMPARE_TABLES.sys))}
+${section('c-probe', '프로브', table(COMPARE_TABLES.probe))}
+${section('c-result', '결과', table(COMPARE_TABLES.result))}
+${section('c-diff', '차이 해설', DIFF_HTML)}
+${section('c-figs', '논문 그림', `
+  <h3>WULPUS PRO</h3>
+  <div class="pfigs">${WULPUS_FIGS.map(paperFig).join('')}</div>
+  <p class="small muted">그림: Vostrikov et al., "WULPUS PRO", ${link('https://arxiv.org/abs/2607.12137', 'arXiv 2607.12137v2')}, ${link('https://creativecommons.org/licenses/by-sa/4.0/', 'CC BY-SA 4.0')}. 크기만 줄였어요.</p>
+  ${signedInPics}`)}
+${section('c-src', '자료', SOURCES_HTML)}`;
+}

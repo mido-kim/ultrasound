@@ -10,6 +10,7 @@
 //   bringup/{PROJECT}/places/{id}         자료 지도: where everything lives
 //   bringup/{PROJECT}/notes/{id}          notes on meetings and design versions (notes.js)
 //   bringup/{PROJECT}/config/home         the picture on the home screen
+//   bringup/{PROJECT}/config/compare      회로 비교 figures that can't be public (compare.js)
 //   bringup/{PROJECT}/files/{id}          preview picture metadata; the bytes in files/{id}/chunks (files.js)
 // Big files themselves live in Google Drive; records only hold links to them.
 // (The path keeps its first name, "bringup", so the rules didn't change.)
