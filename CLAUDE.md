@@ -37,7 +37,11 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   shows its current steps; a removed step with a result in a run stays as
   `removed: true` and shows only in that run.
 - `js/backup.js`: CSV (BOM for Excel) and JSON backup for everything.
-- `js/main.js`: boot (Firebase unless `settings.mode === 'local'`), sign-in,
+- `js/main.js`: boot (Firebase; a copy without `firebaseConfig` runs on a local
+  store), sign-in. Signed out = `guest`: only `#/console` opens, on a local store
+  (`showGuest`); every other route shows the sign-in screen. The old
+  이 기기에서만 mode is gone (its records are offered after sign-in by
+  `offerLocalCopy`),
   hash routes `#/` home, `#/boards`, `#/b/<id>[/<n>]`, `#/guide`,
   `#/p/<kind>`, `#/p/<kind>/edit`, `#/r/<id>`, `#/settings`. Render is the
   whole page as a string (keeps focus, caret and the row in view). Typing goes
@@ -79,8 +83,9 @@ team and are written in the app's step editor; don't seed or "suggest" steps.
   a folder tree for the user to drag into Drive.
 - `js/dev-store.js`: in-memory store with files; `http://localhost:5174/?dev`
   tries every file screen without Firebase. Use it to test file features.
-- `js/console.js`: 펌웨어 콘솔 (`#/console`), signed-in accounts only (the user's
-  wish; in local mode the page asks to sign in). Module state `con` (link,
+- `js/console.js`: 펌웨어 콘솔 (`#/console`), the one page that opens without
+  signing in (the user's rule since 2026-11-21; 채널 맵s then stay on the
+  device). Module state `con` (link,
   status, lines, log) outlives the page; `consolePage()` is drawn by render(),
   `mountConsole()` runs after it, and everything live is painted in place
   (never render()). Esc sends S from any page while connected. Settings the

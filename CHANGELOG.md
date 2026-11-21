@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0 — 2026-11-21
+
+- The user's rule: **every page needs a sign-in except the 펌웨어 콘솔**.
+  Signed out, the sign-in screen has 로그인 없이 펌웨어 콘솔 열기 (and
+  `#/console` opens straight to it). The console works in full; its 채널 맵s
+  are kept on that device until someone signs in. The top bar then says
+  로그인 안 함 and has a 로그인 link. Any other page goes back to the sign-in
+  screen.
+- 로그인 없이 이 기기에서만 쓰기 is gone. A device that was in that mode opens
+  the sign-in screen; after signing in, its records are offered for copying
+  into the shared ones, as before.
+- If Firebase can't load (no internet on the first open), the message offers
+  펌웨어 콘솔 열기 instead of 이 기기에서만 쓰기.
+
 ## 0.17.0 — 2026-11-20
 
 - 회로 비교 gets pictures.

@@ -6,7 +6,7 @@ export const SETTINGS_KEY = 'usbringup.settings.v1';
 export const DEFAULTS = {
   name: '', // shown next to every result this person records
   theme: 'system', // 'system' | 'light' | 'dark'
-  mode: '', // '' = sign in and share, 'local' = this device only
+  mode: '', // '' = sign in and share. 'local' (this device only) was 0.17 and older; boot clears it
 };
 
 export function loadSettings() {

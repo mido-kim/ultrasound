@@ -43,6 +43,7 @@ const state = { ...Object.fromEntries(COLLS.map((c) => [c, new Map()])), pending
 let store = null;
 let cloud = null;
 let unsubscribe = null;
+let guest = false; // signed out: only the firmware console (showGuest)
 const drafts = new Map(); // input id → text typed but not yet in the store
 const timers = new Map(); // input id → pending save
 const SAVE_MS = 800;
@@ -68,20 +69,43 @@ async function boot() {
     const { devStore } = await import('./dev-store.js');
     return start(devStore());
   }
-  if (!firebaseConfig || settings.mode === 'local') return start(localStore());
+  if (!firebaseConfig) return start(localStore()); // a copy without Firebase: everything on this device
+  if (settings.mode === 'local') { // 이 기기에서만 (0.17 and older) is gone; its records are offered after sign-in
+    settings.mode = '';
+    saveSettings(settings);
+  }
   showMessage('불러오는 중…');
   try {
     const { connectCloud } = await import('./cloud.js');
     cloud = await connectCloud(firebaseConfig);
   } catch (err) {
     console.error(err);
-    app.innerHTML = `<div class="center-msg"><div class="stack">
-      <p>동기화를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침하세요.</p>
-      <div class="row" style="justify-content:center"><button type="button" data-act="use-local">이 기기에서만 쓰기</button></div>
-    </div></div>`;
-    return;
+    guest = true;
+    return showGuest();
   }
-  cloud.onUser((user) => (user ? start(cloud.storeFor(user, onSyncError)) : showSignIn()));
+  cloud.onUser((user) => {
+    guest = !user;
+    if (user) start(cloud.storeFor(user, onSyncError));
+    else showGuest();
+  });
+}
+
+// Signed out (the user's rule, 2026-11-21): every page needs a sign-in except
+// the firmware console, which opens without one. Its 채널 맵s then live in a
+// local store on this device. Called again on each route change.
+function showGuest() {
+  if (route().view === 'console') {
+    if (store?.kind === 'local') return render(true);
+    return start(localStore());
+  }
+  if (cloud) return showSignIn();
+  unsubscribe?.();
+  unsubscribe = null;
+  store = null;
+  app.innerHTML = `<div class="center-msg"><div class="stack">
+    <p>동기화를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침하세요.</p>
+    <div class="row" style="justify-content:center"><a class="btn" href="#/console">펌웨어 콘솔 열기</a></div>
+  </div></div>`;
 }
 
 function start(s) {
@@ -164,6 +188,7 @@ function route() {
 }
 
 function onRouteChange() {
+  if (guest) return showGuest();
   if (!store) return;
   const r = route();
   if (protoEdit && !(r.view === 'edit' && r.kind === protoEdit.kind)) {
@@ -185,6 +210,7 @@ function currentTarget() {
 
 function render(newPage = false) {
   if (!store) return;
+  if (guest && route().view !== 'console') return showGuest();
   const active = document.activeElement;
   const focusId = active && app.contains(active) && active.id ? active.id : null;
   const sel = focusId && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null;
@@ -197,7 +223,7 @@ function render(newPage = false) {
     boards: boardsPage, board: () => boardPage(r), guide: guidePage, proto: () => protoPage(r.kind), designs: designsPage,
     edit: () => editPage(r.kind), run: () => runPage(r), meetings: meetingsPage, places: placesPage, settings: settingsPage, home: homePage,
     compare: comparePage,
-    console: () => consolePage(store.kind === 'cloud', state.config.get(CHANNELS_DOC)),
+    console: () => consolePage(state.config.get(CHANNELS_DOC)),
   };
   app.innerHTML = `${shell(r)}<main id="main">${errorBanner()}${pages[r.view]()}</main>`;
   hydrateFiles();
@@ -234,11 +260,13 @@ function shell(r) {
     <a class="brand" href="#/"><img src="icons/icon.svg" alt="">Wearable Ultrasound</a>
     <span class="spacer"></span>
     ${syncPill()}
-    <a class="top-link" href="#/settings"${r.view === 'settings' ? ' aria-current="page"' : ''}>설정</a>
+    ${guest ? '<a class="top-link" href="#/">로그인</a>'
+      : `<a class="top-link" href="#/settings"${r.view === 'settings' ? ' aria-current="page"' : ''}>설정</a>`}
   </div></header>`;
 }
 
 function syncPill() {
+  if (guest) return '<span class="sync local" title="채널 맵은 이 기기에만 저장돼요">로그인 안 함</span>';
   if (store.kind === 'local') return '<span class="sync local" title="이 기기에만 저장돼요">이 기기에만</span>';
   if (state.error) return '<span class="sync error" title="동기화 오류">동기화 오류</span>';
   if (!navigator.onLine) return '<span class="sync pending" title="오프라인 · 연결되면 자동으로 보내요">오프라인</span>';
@@ -1606,10 +1634,6 @@ function onClick(e) {
     case 'export-csv': return saveFile(`wearable-us-${stamp()}.csv`, csvFor(state), 'text/csv');
     case 'export-json': return saveFile(`wearable-us-backup-${stamp()}.json`, backupFile(state, VERSION), 'application/json');
     case 'import-json': return $('#import-file').click();
-    case 'use-local':
-      settings.mode = 'local';
-      saveSettings(settings);
-      return start(localStore());
     case 'use-cloud':
       settings.mode = '';
       saveSettings(settings);
@@ -2043,7 +2067,7 @@ function showSignIn() {
       <button class="primary wide" type="submit">로그인</button>
       <button class="wide" type="button" data-signup>계정 만들기</button>
       <button class="link" type="button" data-reset>비밀번호를 잊었어요</button>
-      <button class="link" type="button" data-local>로그인 없이 이 기기에서만 쓰기</button>
+      <button class="link" type="button" data-console>로그인 없이 펌웨어 콘솔 열기</button>
     </form>
   </div>`;
   const f = $('#signin');
@@ -2084,10 +2108,9 @@ function showSignIn() {
       note.hidden = false;
     });
   });
-  f.querySelector('[data-local]').addEventListener('click', () => {
-    settings.mode = 'local';
-    saveSettings(settings);
-    start(localStore());
+  f.querySelector('[data-console]').addEventListener('click', () => {
+    if (route().view === 'console') showGuest();
+    else location.hash = '#/console';
   });
 }
 

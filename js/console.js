@@ -187,20 +187,11 @@ function sendScanOrder() {
 
 // ---------------------------------------------------------------- page
 
-// signedIn: a signed-in account. In 이 기기에서만 (local) mode the console
-// stays closed, like the shared records: it asks to sign in instead.
-// channels: the config/channels record (the 채널 맵s).
-export function consolePage(signedIn = true, channels = null) {
+// The one page that opens without signing in (the user's rule, 2026-11-21).
+// channels: the config/channels record (the 채널 맵s): the shared one when
+// signed in, this device's own when signed out.
+export function consolePage(channels = null) {
   con.maps = mapsOf(channels);
-  if (!signedIn) {
-    return `
-  <div class="page-head">
-    <a class="back" href="#/boards">← 회로 보드 검증</a>
-    <h1>펌웨어 콘솔</h1>
-  </div>
-  <div class="empty"><h2>로그인해야 써요</h2>
-    <button type="button" class="primary" data-act="use-cloud">로그인해서 같이 쓰기</button></div>`;
-  }
   const supported = hasSerial() || isDev();
   const freqBtns = FREQ_LABELS.map((f, i) => `<button type="button" class="pick" data-act="con-freq" data-i="${i}">${f}</button>`).join('');
   const modeTips = { A: '한 소자 한 줄', M: '한 소자를 시간 순으로 (움직임)', B: '소자를 바꿔 가며 16줄 단면' };
